@@ -1,0 +1,249 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* The Apple system-font stack: -apple-system/BlinkMacSystemFont resolve to
+     actual San Francisco on Mac/iOS, and every other platform falls back to
+     its own native UI font (Segoe UI, Roboto, ...) — the same "looks native
+     everywhere" approach Apple's own web guidance recommends, since San
+     Francisco itself isn't licensed for web embedding. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* Rich blue-and-white palette, soft rounded "Apple-like" corners. The
+   sidebar/nav rail stays the same deep navy-blue in both themes — a
+   consistent brand anchor rather than something that flips with the
+   toggle — while every other surface follows light/dark. */
+:root {
+  --background: oklch(0.99 0.003 258);
+  --foreground: oklch(0.2 0.03 258);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.03 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.03 258);
+  --primary: oklch(0.64 0.15 255);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.96 0.008 258);
+  --secondary-foreground: oklch(0.32 0.04 258);
+  --muted: oklch(0.97 0.006 258);
+  --muted-foreground: oklch(0.54 0.025 258);
+  --accent: oklch(0.95 0.025 255);
+  --accent-foreground: oklch(0.4 0.13 258);
+  --destructive: oklch(0.58 0.22 25);
+  --destructive-foreground: oklch(0.99 0.003 258);
+  --success: oklch(0.62 0.15 152);
+  --success-foreground: oklch(0.99 0.003 258);
+  --warning: oklch(0.79 0.16 80);
+  --warning-foreground: oklch(0.28 0.06 80);
+  --border: oklch(0.92 0.008 258);
+  --input: oklch(0.92 0.008 258);
+  --ring: oklch(0.64 0.15 255);
+  --chart-1: oklch(0.64 0.15 255);
+  --chart-2: oklch(0.62 0.15 152);
+  --chart-3: oklch(0.79 0.16 80);
+  --chart-4: oklch(0.58 0.22 25);
+  --chart-5: oklch(0.6 0.1 300);
+  --radius: 0.9rem;
+  --sidebar: oklch(0.97 0.012 255);
+  --sidebar-foreground: oklch(0.3 0.05 258);
+  --sidebar-primary: oklch(0.64 0.15 255);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.92 0.025 255);
+  --sidebar-accent-foreground: oklch(0.32 0.1 258);
+  --sidebar-border: oklch(0.91 0.01 258);
+  --sidebar-ring: oklch(0.64 0.15 255);
+}
+
+.dark {
+  --background: oklch(0.16 0.02 258);
+  --foreground: oklch(0.96 0.005 258);
+  --card: oklch(0.21 0.025 258);
+  --card-foreground: oklch(0.96 0.005 258);
+  --popover: oklch(0.21 0.025 258);
+  --popover-foreground: oklch(0.96 0.005 258);
+  --primary: oklch(0.72 0.14 255);
+  --primary-foreground: oklch(0.14 0.02 258);
+  --secondary: oklch(0.27 0.025 258);
+  --secondary-foreground: oklch(0.96 0.005 258);
+  --muted: oklch(0.25 0.02 258);
+  --muted-foreground: oklch(0.68 0.03 258);
+  --accent: oklch(0.31 0.045 255);
+  --accent-foreground: oklch(0.9 0.04 258);
+  --destructive: oklch(0.7 0.19 25);
+  --destructive-foreground: oklch(0.14 0.02 258);
+  --success: oklch(0.72 0.15 152);
+  --success-foreground: oklch(0.14 0.02 258);
+  --warning: oklch(0.82 0.15 80);
+  --warning-foreground: oklch(0.2 0.05 80);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.72 0.14 255);
+  --chart-1: oklch(0.72 0.14 255);
+  --chart-2: oklch(0.72 0.15 152);
+  --chart-3: oklch(0.82 0.15 80);
+  --chart-4: oklch(0.7 0.19 25);
+  --chart-5: oklch(0.7 0.1 300);
+  --sidebar: oklch(0.21 0.025 258);
+  --sidebar-foreground: oklch(0.96 0.005 258);
+  --sidebar-primary: oklch(0.72 0.14 255);
+  --sidebar-primary-foreground: oklch(0.14 0.02 258);
+  --sidebar-accent: oklch(1 0 0 / 8%);
+  --sidebar-accent-foreground: oklch(0.98 0.005 258);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.72 0.14 255);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* A stray wide child (a long unbroken reg-no, a table) must never make
+       the whole page pan sideways on a phone — anything that genuinely needs
+       width scrolls inside its own container instead. */
+    overflow-x: hidden;
+  }
+  html {
+    @apply font-sans;
+    /* Momentum scrolling + no iOS text auto-inflation in landscape, which
+       otherwise silently rescales body copy on rotation. */
+    -webkit-text-size-adjust: 100%;
+  }
+}
+
+@layer utilities {
+  /* With viewportFit: cover the layout paints under the home indicator, so
+     anything pinned to the bottom has to add the inset back itself. */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ── Driving truck ────────────────────────────────────────────────────────
+   A truck ambles left→right along the bottom of a lane as a quiet "still
+   working" signal. Only `transform` is animated (compositor-only, no layout
+   or paint per frame), and the lane is a size container so the distance is
+   expressed in cqw — the same rule then works in a full-bleed screen strip
+   or a small card without any JS measuring widths. */
+@layer components {
+  .truck-lane {
+    container-type: inline-size;
+    position: relative;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .truck-runner {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    will-change: transform;
+    animation: truck-drive var(--truck-duration, 22s) linear infinite;
+    animation-delay: var(--truck-delay, 0s);
+  }
+
+  /* Gentle suspension bob, offset from the drive so the two never beat in
+     sync and look mechanical. */
+  .truck-body {
+    animation: truck-bob 1.4s ease-in-out infinite;
+  }
+
+  /* The road the truck runs on: dashes streaming backwards sell the motion
+     far more cheaply than spinning each wheel would. */
+  .truck-road {
+    background-image: repeating-linear-gradient(
+      to right,
+      currentColor 0 14px,
+      transparent 14px 28px
+    );
+    animation: truck-road-flow 0.9s linear infinite;
+  }
+}
+
+@keyframes truck-drive {
+  from {
+    transform: translateX(-140px);
+  }
+  to {
+    transform: translateX(calc(100cqw + 40px));
+  }
+}
+
+@keyframes truck-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.5px);
+  }
+}
+
+@keyframes truck-road-flow {
+  to {
+    background-position-x: -28px;
+  }
+}
+
+/* Motion is decoration here, never information — anyone who has asked the
+   system to calm things down gets a parked truck instead of a moving one. */
+@media (prefers-reduced-motion: reduce) {
+  .truck-runner {
+    animation: none;
+    transform: translateX(calc(50cqw - 32px));
+  }
+  .truck-body,
+  .truck-road {
+    animation: none;
+  }
+}

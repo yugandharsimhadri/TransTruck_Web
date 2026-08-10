@@ -1,0 +1,27 @@
+# .NET build output — every project's bin/obj, wherever it sits.
+[Bb]in/
+[Oo]bj/
+*.user
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.suo
+
+# The published release output (see deploy/publish-api.ps1) — a build
+# artifact, never something to commit.
+/dist/
+
+# Local database, backups and secrets the API writes on its own machine —
+# never part of the repo, and TransTruckWeb.db in particular must never be
+# shipped: it would carry every onboarded company's real data.
+*.db
+*.db-shm
+*.db-wal
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# The frontend has its own .gitignore (node_modules, .next, etc.) that
+# applies to everything under web/transtrack-web regardless of this file.

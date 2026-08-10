@@ -1,0 +1,30 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "transtruck-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-10",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // The static assets OpenNext builds (JS/CSS/images) — served directly by
+  // the Worker's assets binding, never re-rendered on every request.
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // OpenNext's own request routing calls back into this same Worker for
+  // things like on-demand revalidation; without this binding those internal
+  // calls have nowhere to resolve to.
+  "services": [
+    { "binding": "WORKER_SELF_REFERENCE", "service": "transtruck-web" }
+  ],
+
+  // Attaches transtruck.sivayaantechnologies.com on `npm run deploy` — no
+  // dashboard click needed — since sivayaantechnologies.com is already an
+  // active zone in this Cloudflare account (it's already serving
+  // ttapi.sivayaantechnologies.com via the tunnel). If the zone ever moves
+  // accounts, this line is the one thing that would need re-pointing.
+  "routes": [
+    { "pattern": "transtruck.sivayaantechnologies.com", "custom_domain": true }
+  ]
+}

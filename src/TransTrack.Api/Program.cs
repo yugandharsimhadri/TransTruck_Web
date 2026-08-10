@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TransTrack.Api.Auth;
@@ -9,6 +10,23 @@ using TransTrack.Data;
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// The production deployment sits behind a Cloudflare Tunnel: Cloudflare
+// terminates TLS at its edge (https://ttapi.sivayaantechnologies.com) and
+// cloudflared forwards plain HTTP to this process on localhost:6041. Without
+// trusting the forwarded headers, Kestrel would see every request as
+// insecure HTTP — breaking the Secure cookie flag and turning
+// UseHttpsRedirection into a redirect loop. cloudflared isn't a "known
+// proxy" IP ASP.NET Core recognises by default, so the known-network checks
+// are cleared and the headers are trusted outright; that's fine here since
+// nothing routes to this port except through the tunnel (no public port
+// forwarding), so there's no untrusted network path that could forge them.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // ── Data layer — same IDbContextFactory<AppDbContext> pattern the desktop
 // app uses; every TransTrack.Data service opens its own short-lived context
@@ -139,6 +157,11 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 var app = builder.Build();
+
+// Must run before anything that reads Request.Scheme/RemoteIpAddress
+// (UseHttpsRedirection, the license-check middleware's IP-agnostic logic,
+// the Secure cookie flag AuthController sets) — see the registration above.
+app.UseForwardedHeaders();
 
 // Migrate on startup — this product's own database (see DbBootstrapper's
 // TransTruckWeb.db / TRANSTRUCKWEB_DB), entirely separate from the
