@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TransTrack.Api/TransTrack.Api.csproj" />
+    <Project Path="src/TransTrack.Core/TransTrack.Core.csproj" />
+    <Project Path="src/TransTrack.Data/TransTrack.Data.csproj" />
+  </Folder>
+</Solution>
