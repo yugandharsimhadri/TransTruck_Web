@@ -50,3 +50,14 @@ public enum AppThemeKind
     Light = 1,
     Dark = 2
 }
+
+/// <summary>What happened to a row, as recorded in the audit trail. A soft
+/// delete (IsDeleted flipped on) is reported as <see cref="Deleted"/> rather
+/// than as the Update it technically is at the database level — the audit
+/// trail is there to answer "what did someone do", not "what did EF do".</summary>
+public enum AuditAction
+{
+    Created,
+    Updated,
+    Deleted
+}

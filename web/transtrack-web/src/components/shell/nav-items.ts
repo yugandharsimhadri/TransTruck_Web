@@ -6,6 +6,7 @@ import {
   Wrench,
   BookUser,
   BarChart3,
+  History,
   Settings,
   MoreHorizontal,
   type LucideIcon,
@@ -34,6 +35,7 @@ export const moreNavItems: NavItem[] = [
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/driver-ledger", label: "Driver Ledger", icon: BookUser },
   { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/activity", label: "Activity", icon: History, roles: ["Owner", "CoOwner"] },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["Owner", "CoOwner"] },
 ];
 

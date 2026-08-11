@@ -38,8 +38,15 @@ public class TripTransactionsController(TripTransactionService transactions, ICu
     public async Task<IActionResult> Approve(Guid transactionId, ApprovalRequest request)
     {
         if (currentUser.UserId is not { } userId) return Forbid();
-        await transactions.ApproveAsync(transactionId, userId, request.Remarks);
-        return Ok();
+        try
+        {
+            await transactions.ApproveAsync(transactionId, userId, request.Remarks);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpPost("approvals/{transactionId:guid}/reject")]
@@ -47,7 +54,25 @@ public class TripTransactionsController(TripTransactionService transactions, ICu
     public async Task<IActionResult> Reject(Guid transactionId, ApprovalRequest request)
     {
         if (currentUser.UserId is not { } userId) return Forbid();
-        await transactions.RejectAsync(transactionId, userId, request.Remarks);
-        return Ok();
+        try
+        {
+            await transactions.RejectAsync(transactionId, userId, request.Remarks);
+            return Ok();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Removing an amount received. Owner-only, deliberately: an
+    /// approved amount can't be edited by anyone, so deleting it is the only
+    /// correction available and that authority sits with the Owner alone.</summary>
+    [HttpDelete("transactions/{transactionId:guid}")]
+    [Authorize(Policy = Policies.Owner)]
+    public async Task<IActionResult> Delete(Guid transactionId)
+    {
+        await transactions.DeleteAsync(transactionId);
+        return NoContent();
     }
 }

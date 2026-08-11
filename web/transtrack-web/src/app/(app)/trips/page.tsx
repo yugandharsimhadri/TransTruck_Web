@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { Trip } from "@/lib/types";
+import type { TripListItem } from "@/lib/types";
 import { Plus } from "lucide-react";
 import { TruckEmpty } from "@/components/truck-drive";
 
@@ -24,7 +24,7 @@ export default function TripsPage() {
 
   const tripsQuery = useQuery({
     queryKey: ["trips"],
-    queryFn: () => api.get<Trip[]>("/api/trips"),
+    queryFn: () => api.get<TripListItem[]>("/api/trips"),
   });
 
   const trips = (tripsQuery.data ?? []).filter((t) =>
@@ -64,10 +64,10 @@ export default function TripsPage() {
               <CardContent className="flex items-center justify-between gap-3 p-4">
                 <div className="min-w-0">
                   <p className="truncate font-medium">
-                    {t.tripNo} · {t.vehicle?.regNo} · {formatDate(t.date)}
+                    {t.tripNo} · {t.vehicleRegNo} · {formatDate(t.date)}
                   </p>
                   <p className="truncate text-sm text-muted-foreground">
-                    {t.fromCity?.name} → {t.toCity?.name} · {t.party?.name}
+                    {t.fromCity} → {t.toCity} · {t.partyName}
                   </p>
                 </div>
                 <div className="shrink-0 text-right">

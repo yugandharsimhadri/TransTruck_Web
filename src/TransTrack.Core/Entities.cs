@@ -243,7 +243,7 @@ public class User : BaseEntity, ITenantEntity
 
 // ── Transactional ───────────────────────────────────────────────────────
 
-public class Trip : BaseEntity, ITenantEntity
+public class Trip : BaseEntity, ITenantEntity, IAuditable
 {
     public Guid CompanyId { get; set; }
     public string TripNo { get; set; } = string.Empty;
@@ -336,7 +336,7 @@ public class Trip : BaseEntity, ITenantEntity
     public decimal CompanyExpenses => IsOwnAccounting ? TotalExpenses : 0m;
 }
 
-public class TripExpense : BaseEntity, ITenantEntity
+public class TripExpense : BaseEntity, ITenantEntity, IAuditable
 {
     // Denormalized from Trip.CompanyId (rather than only reachable by
     // joining through Trip) so a by-id lookup like DeleteExpenseAsync stays
@@ -358,7 +358,7 @@ public class TripExpense : BaseEntity, ITenantEntity
 
 /// <summary>An amount received against a trip. Sits Pending until the Owner
 /// approves it — the entity the Approvals screen lists and acts on.</summary>
-public class TripTransaction : BaseEntity, ITenantEntity
+public class TripTransaction : BaseEntity, ITenantEntity, IAuditable
 {
     public Guid CompanyId { get; set; }
 
@@ -378,7 +378,7 @@ public class TripTransaction : BaseEntity, ITenantEntity
     public string? ApprovalRemarks { get; set; }
 }
 
-public class VehicleMaintenance : BaseEntity, ITenantEntity
+public class VehicleMaintenance : BaseEntity, ITenantEntity, IAuditable
 {
     public Guid CompanyId { get; set; }
     public Guid VehicleId { get; set; }
@@ -398,7 +398,7 @@ public class VehicleMaintenance : BaseEntity, ITenantEntity
     public string? Remarks { get; set; }
 }
 
-public class DriverLedgerEntry : BaseEntity, ITenantEntity
+public class DriverLedgerEntry : BaseEntity, ITenantEntity, IAuditable
 {
     public Guid CompanyId { get; set; }
     public Guid DriverId { get; set; }
@@ -411,4 +411,50 @@ public class DriverLedgerEntry : BaseEntity, ITenantEntity
     /// <summary>SalaryPaid entries only, e.g. "2026-08".</summary>
     public string? ForMonth { get; set; }
     public string? Remarks { get; set; }
+}
+
+// ── Audit trail ──────────────────────────────────────────────────────────
+
+/// <summary>Marks a row whose every creation, change and deletion is written
+/// to the audit trail. Opt-in by design: masters like City or ExpenseCategory
+/// change rarely and carry no money, so auditing them would bury the entries
+/// that actually matter — the ones touching cash and vehicle records.
+/// AppDbContext picks this up automatically on save, so implementing it is
+/// the only step needed to bring a new entity under audit.</summary>
+public interface IAuditable
+{
+}
+
+/// <summary>One row per change to an <see cref="IAuditable"/> entity: who did
+/// it, when, and — for an edit — exactly which fields moved and from what to
+/// what. Append-only in practice; nothing in the app updates or deletes these,
+/// which is the whole point of keeping them.</summary>
+public class AuditLog : BaseEntity, ITenantEntity
+{
+    public Guid CompanyId { get; set; }
+
+    /// <summary>The entity's type name, e.g. "TripExpense" — stored as plain
+    /// text rather than an enum so adding a newly audited entity never needs
+    /// a migration here.</summary>
+    public string EntityType { get; set; } = string.Empty;
+    public Guid EntityId { get; set; }
+
+    /// <summary>The trip this change belongs to, when it belongs to one, so a
+    /// trip's whole history can be fetched in a single indexed query instead
+    /// of joining back through each child table.</summary>
+    public Guid? TripId { get; set; }
+
+    public AuditAction Action { get; set; }
+
+    public Guid? ChangedByUserId { get; set; }
+    public DateTime ChangedOn { get; set; } = DateTime.Now;
+
+    /// <summary>A one-line plain-English description of the change, written at
+    /// capture time — the reader shouldn't have to parse JSON to see what
+    /// happened, and the phrasing can't drift later as the code changes.</summary>
+    public string Summary { get; set; } = string.Empty;
+
+    /// <summary>Field-level detail as JSON: [{ "field": ..., "from": ..., "to": ... }].
+    /// Null for a creation, where there is no "from" worth recording.</summary>
+    public string? Changes { get; set; }
 }

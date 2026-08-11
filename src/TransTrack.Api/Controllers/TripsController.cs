@@ -11,8 +11,10 @@ namespace TransTrack.Api.Controllers;
 [Route("api/trips")]
 public class TripsController(TripService trips, MasterDataService masters, ICurrentUserContext currentUser) : ControllerBase
 {
+    /// <summary>The trips list. Returns the flat list projection rather than
+    /// the full object graph — see TripService.GetTripListAsync for why.</summary>
     [HttpGet]
-    public async Task<ActionResult<List<Trip>>> Get() => Ok(await trips.GetTripsAsync());
+    public async Task<ActionResult<List<TripListItem>>> Get() => Ok(await trips.GetTripListAsync());
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<Trip>> GetById(Guid id)
@@ -47,15 +49,31 @@ public class TripsController(TripService trips, MasterDataService masters, ICurr
     [HttpPost("{id:guid}/expenses")]
     public async Task<IActionResult> AddExpense(Guid id, TripExpense expense)
     {
-        await trips.AddExpenseAsync(id, expense);
-        return Ok(await trips.GetTripAsync(id));
+        try
+        {
+            await trips.AddExpenseAsync(id, expense);
+            return Ok(await trips.GetTripAsync(id));
+        }
+        catch (InvalidOperationException ex)
+        {
+            // Notably the closed-trip refusal: the user needs to be told to
+            // reopen the trip, not handed a 500.
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     [HttpDelete("expenses/{expenseId:guid}")]
     public async Task<IActionResult> DeleteExpense(Guid expenseId)
     {
-        await trips.DeleteExpenseAsync(expenseId);
-        return NoContent();
+        try
+        {
+            await trips.DeleteExpenseAsync(expenseId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     // ── Printing numbers ──────────────────────────────────────────────────

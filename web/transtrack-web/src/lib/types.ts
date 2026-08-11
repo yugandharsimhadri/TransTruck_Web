@@ -137,6 +137,28 @@ export interface Trip {
   netAfterExpenses: number;
 }
 
+/**
+ * The trips list row. Deliberately flat and much smaller than `Trip`: the
+ * list screen shows nine short fields, so the API sends exactly those rather
+ * than the whole graph (vehicle, driver, party, cities, every expense and
+ * amount) it sends for the detail screen.
+ */
+export interface TripListItem {
+  id: string;
+  tripNo: string;
+  date: string;
+  vehicleRegNo: string;
+  driverName: string;
+  partyName: string;
+  fromCity: string;
+  toCity: string;
+  amount: number;
+  totalExpenses: number;
+  totalApprovedReceived: number;
+  balanceReceivable: number;
+  status: TripStatus;
+}
+
 export interface Company {
   id: string;
   companyName: string;
@@ -272,6 +294,30 @@ export interface DriverLedgerEntry {
   amount: number;
   forMonth?: string | null;
   remarks?: string | null;
+}
+
+// ── Audit trail ─────────────────────────────────────────────────────────
+
+export type AuditAction = "Created" | "Updated" | "Deleted";
+
+/** One field that moved, as stored in AuditEntry.changes (JSON). */
+export interface AuditFieldChange {
+  field: string;
+  from: string | null;
+  to: string | null;
+}
+
+export interface AuditEntry {
+  id: string;
+  entityType: string;
+  entityId: string;
+  tripId?: string | null;
+  action: AuditAction;
+  summary: string;
+  /** JSON-encoded AuditFieldChange[]; null for a creation. */
+  changes?: string | null;
+  changedBy: string;
+  changedOn: string;
 }
 
 // ── Reports ─────────────────────────────────────────────────────────────

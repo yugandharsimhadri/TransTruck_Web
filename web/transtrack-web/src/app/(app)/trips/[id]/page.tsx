@@ -25,6 +25,7 @@ import Link from "next/link";
 import { ArrowLeft, Trash2, Lock, LockOpen, Share2, FileText, Receipt, Wallet, Plus, ChevronDown } from "lucide-react";
 import { shareFile, shareText } from "@/lib/share";
 import { iconForCategory } from "@/lib/expense-icons";
+import { TripAuditTrail } from "@/components/audit-trail";
 import { cn } from "@/lib/utils";
 
 const empty = "00000000-0000-0000-0000-000000000000";
@@ -66,6 +67,8 @@ export default function TripDetailPage() {
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(isNew);
   const [detailsOpen, setDetailsOpen] = useState(isNew);
+  // Collapsed by default: valuable when you need it, noise when you don't.
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   useEffect(() => {
     if (trip && !hydrated) {
@@ -177,11 +180,27 @@ export default function TripDetailPage() {
         )}
       </div>
 
+      {/* A closed trip is settled: nothing can be added to it until someone
+          deliberately reopens it. Saying so here — instead of leaving buttons
+          that lead to a form which fails on submit — is the difference between
+          a rule and a dead end. */}
+      {trip?.status === "Closed" && (
+        <div className="flex items-start gap-3 rounded-2xl border border-border bg-muted/50 p-4">
+          <Lock className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="text-sm">
+            <p className="font-medium">This trip is closed</p>
+            <p className="text-muted-foreground">
+              Expenses and amounts are final. Reopen the trip below if you need to change something.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* On a saved trip the two things people actually come here to do are
           record an expense and record money received — so those lead, above
           the trip's own fields. Each opens a dedicated full screen, which is
           much easier to fill in on a phone than a cramped popup. */}
-      {trip && (
+      {trip && trip.status === "Open" && (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Button
             size="lg"
@@ -374,18 +393,20 @@ export default function TripDetailPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Expenses</CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                nativeButton={false}
-                render={<Link href={`/trips/${trip.id}/expenses/new`} />}
-              >
-                <Plus className="h-4 w-4" /> Add
-              </Button>
+              {trip.status === "Open" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/trips/${trip.id}/expenses/new`} />}
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-2">
               {trip.expenses.map((e) => (
-                <ExpenseRow key={e.id} tripId={trip.id} expense={e} />
+                <ExpenseRow key={e.id} tripId={trip.id} expense={e} canEdit={trip.status === "Open"} />
               ))}
               {trip.expenses.length === 0 && (
                 <p className="text-sm text-muted-foreground">
@@ -398,14 +419,16 @@ export default function TripDetailPage() {
           <Card>
             <CardHeader className="flex-row items-center justify-between space-y-0">
               <CardTitle className="text-base">Amounts received</CardTitle>
-              <Button
-                size="sm"
-                variant="outline"
-                nativeButton={false}
-                render={<Link href={`/trips/${trip.id}/amount/new`} />}
-              >
-                <Plus className="h-4 w-4" /> Add
-              </Button>
+              {trip.status === "Open" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  nativeButton={false}
+                  render={<Link href={`/trips/${trip.id}/amount/new`} />}
+                >
+                  <Plus className="h-4 w-4" /> Add
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-2">
               {trip.transactions.map((t) => (
@@ -429,6 +452,24 @@ export default function TripDetailPage() {
                 </p>
               )}
             </CardContent>
+          </Card>
+
+          {/* The trip's own record of what happened to it — kept on the trip
+              rather than only in a separate log, since that's where anyone
+              asking "who changed this?" is already standing. */}
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle className="text-base">History</CardTitle>
+              <Button variant="ghost" size="sm" onClick={() => setHistoryOpen((o) => !o)}>
+                {historyOpen ? "Hide" : "Show"}
+                <ChevronDown className={cn("h-4 w-4 transition-transform", historyOpen && "rotate-180")} />
+              </Button>
+            </CardHeader>
+            {historyOpen && (
+              <CardContent>
+                <TripAuditTrail tripId={trip.id} />
+              </CardContent>
+            )}
           </Card>
 
           <Separator />
@@ -496,11 +537,20 @@ function DocumentButton({
   );
 }
 
-function ExpenseRow({ tripId, expense }: { tripId: string; expense: Trip["expenses"][number] }) {
+function ExpenseRow({ tripId, expense, canEdit }: {
+  tripId: string;
+  expense: Trip["expenses"][number];
+  canEdit: boolean;
+}) {
   const queryClient = useQueryClient();
   const deleteMutation = useMutation({
     mutationFn: () => api.delete(`/api/trips/expenses/${expense.id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["trips", tripId] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["trips", tripId] });
+      // The trail gained an entry — refresh it so History stays in step.
+      queryClient.invalidateQueries({ queryKey: ["audit", "trip", tripId] });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Couldn't remove that expense."),
   });
 
   const Icon = iconForCategory(expense.expenseCategory?.name ?? "");
@@ -514,9 +564,11 @@ function ExpenseRow({ tripId, expense }: { tripId: string; expense: Trip["expens
         <p className="font-medium">{expense.expenseCategory?.name} · {formatCurrency(expense.amount)}</p>
         <p className="text-xs text-muted-foreground">{formatDate(expense.date)}</p>
       </div>
-      <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
-        <Trash2 className="h-4 w-4 text-destructive" />
-      </Button>
+      {canEdit && (
+        <Button variant="ghost" size="icon" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+          <Trash2 className="h-4 w-4 text-destructive" />
+        </Button>
+      )}
     </div>
   );
 }

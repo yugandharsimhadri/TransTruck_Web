@@ -44,6 +44,7 @@ builder.Services.AddSingleton<MaintenanceService>();
 builder.Services.AddSingleton<DriverLedgerService>();
 builder.Services.AddSingleton<ReportsService>();
 builder.Services.AddSingleton<DashboardService>();
+builder.Services.AddSingleton<AuditService>();
 
 // EnterpriseAdmin's cross-company surface — onboarding, password reset,
 // license renewal. Deliberately not one of the tenant-scoped services above.

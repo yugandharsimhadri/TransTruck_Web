@@ -5,19 +5,57 @@ namespace TransTrack.Data;
 
 public class TripService(IDbContextFactory<AppDbContext> factory)
 {
+    // Filtered includes on the two child collections: expenses and amounts
+    // are soft-deleted (the audit trail needs the row to survive), so an
+    // unfiltered Include would keep showing deleted lines and — worse — keep
+    // counting them in Trip.TotalExpenses / TotalApprovedReceived, which are
+    // computed straight off these collections.
     private static IQueryable<Trip> WithDetails(AppDbContext db) => db.Trips
         .Include(t => t.Vehicle).ThenInclude(v => v.Owner)
         .Include(t => t.Driver)
         .Include(t => t.Party)
         .Include(t => t.FromCity).ThenInclude(c => c.State)
         .Include(t => t.ToCity).ThenInclude(c => c.State)
-        .Include(t => t.Expenses).ThenInclude(e => e.ExpenseCategory)
-        .Include(t => t.Transactions);
+        .Include(t => t.Expenses.Where(e => !e.IsDeleted)).ThenInclude(e => e.ExpenseCategory)
+        .Include(t => t.Transactions.Where(x => !x.IsDeleted));
 
     public async Task<List<Trip>> GetTripsAsync()
     {
         await using var db = await factory.CreateDbContextAsync();
         return await WithDetails(db).AsNoTracking().Where(t => !t.IsDeleted).OrderByDescending(t => t.Date).ToListAsync();
+    }
+
+    /// <summary>
+    /// The trips list, as a flat projection of just the columns that screen
+    /// actually renders. <see cref="GetTripsAsync"/> returns the whole object
+    /// graph — vehicle, driver, party, both cities and every expense and
+    /// amount row — which is right for the detail screen and roughly 6 KB per
+    /// trip on the wire for a list that shows nine short fields. This keeps a
+    /// long list cheap on a phone: the sums become SQL subqueries, so no child
+    /// collection is ever materialised.
+    /// </summary>
+    public async Task<List<TripListItem>> GetTripListAsync()
+    {
+        await using var db = await factory.CreateDbContextAsync();
+
+        return await db.Trips.AsNoTracking()
+            .Where(t => !t.IsDeleted)
+            .OrderByDescending(t => t.Date)
+            .Select(t => new TripListItem(
+                t.Id,
+                t.TripNo,
+                t.Date,
+                t.Vehicle.RegNo,
+                t.Driver.Name,
+                t.Party.Name,
+                t.FromCity.Name,
+                t.ToCity.Name,
+                t.Amount,
+                t.Expenses.Where(e => !e.IsDeleted).Sum(e => (decimal?)e.Amount) ?? 0m,
+                t.Transactions.Where(x => !x.IsDeleted && x.ApprovalStatus == ApprovalStatus.Approved)
+                    .Sum(x => (decimal?)x.Amount) ?? 0m,
+                t.Status))
+            .ToListAsync();
     }
 
     public async Task<Trip?> GetTripAsync(Guid id)
@@ -89,9 +127,31 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
 
     // ── Expenses ──────────────────────────────────────────────────────────
 
+    /// <summary>The message every "you can't change a closed trip" refusal
+    /// uses, so the wording — and the instruction on how to proceed — is
+    /// identical wherever the rule is hit.</summary>
+    public const string ClosedTripMessage =
+        "This trip is closed. Reopen it first if you need to make changes.";
+
+    /// <summary>A closed trip is a settled one: its expenses and amounts are
+    /// final. Reopening is always available and is a deliberate, audited act,
+    /// so this blocks rather than silently allowing edits after settlement.
+    /// Enforced here in the service, not only in the controller, so every
+    /// caller is covered.</summary>
+    private static async Task EnsureTripOpenAsync(AppDbContext db, Guid tripId)
+    {
+        var status = await db.Trips.Where(t => t.Id == tripId)
+            .Select(t => (TripStatus?)t.Status).FirstOrDefaultAsync();
+
+        if (status is null) throw new InvalidOperationException("Trip not found.");
+        if (status == TripStatus.Closed) throw new InvalidOperationException(ClosedTripMessage);
+    }
+
     public async Task AddExpenseAsync(Guid tripId, TripExpense expense)
     {
         await using var db = await factory.CreateDbContextAsync();
+        await EnsureTripOpenAsync(db, tripId);
+
         expense.Id = Guid.NewGuid();
         expense.TripId = tripId;
         db.TripExpenses.Add(expense);
@@ -103,7 +163,13 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         await using var db = await factory.CreateDbContextAsync();
         var entity = await db.TripExpenses.FirstOrDefaultAsync(x => x.Id == expenseId);
         if (entity is null) return;
-        db.TripExpenses.Remove(entity);
+
+        await EnsureTripOpenAsync(db, entity.TripId);
+
+        // Soft delete, not a row removal: the audit trail has to be able to
+        // show what was taken off a trip and by whom, which a hard delete
+        // would erase along with the row.
+        entity.IsDeleted = true;
         await db.SaveChangesAsync();
     }
 
@@ -163,4 +229,24 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         await db.SaveChangesAsync();
         return (trip.BillNo, true);
     }
+}
+
+/// <summary>One row of the trips list — flat, and only what that screen
+/// draws. Balance is derived here rather than stored so it can never drift
+/// from the two figures it comes from.</summary>
+public record TripListItem(
+    Guid Id,
+    string TripNo,
+    DateTime Date,
+    string VehicleRegNo,
+    string DriverName,
+    string PartyName,
+    string FromCity,
+    string ToCity,
+    decimal Amount,
+    decimal TotalExpenses,
+    decimal TotalApprovedReceived,
+    TripStatus Status)
+{
+    public decimal BalanceReceivable => Amount - TotalApprovedReceived;
 }

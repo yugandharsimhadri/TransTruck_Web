@@ -1,6 +1,8 @@
 using System.Linq.Expressions;
 using System.Reflection;
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using TransTrack.Core;
 
 namespace TransTrack.Data;
@@ -44,6 +46,7 @@ public class AppDbContext : DbContext
     public DbSet<TripTransaction> TripTransactions => Set<TripTransaction>();
     public DbSet<VehicleMaintenance> VehicleMaintenances => Set<VehicleMaintenance>();
     public DbSet<DriverLedgerEntry> DriverLedgerEntries => Set<DriverLedgerEntry>();
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
     private static readonly MethodInfo SetTenantFilterMethod =
         typeof(AppDbContext).GetMethod(nameof(SetTenantFilter), BindingFlags.NonPublic | BindingFlags.Instance)!;
@@ -156,6 +159,16 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.DriverId).OnDelete(DeleteBehavior.Restrict);
         });
 
+        b.Entity<AuditLog>(e =>
+        {
+            // The three ways the trail gets read: newest-first for the
+            // activity feed, by record for one row's history, and by trip for
+            // a trip's whole story.
+            e.HasIndex(x => x.ChangedOn);
+            e.HasIndex(x => new { x.EntityType, x.EntityId });
+            e.HasIndex(x => x.TripId);
+        });
+
         // One global query filter, applied uniformly to every entity that
         // implements ITenantEntity, instead of a hand-written HasQueryFilter
         // per type — so a newly added tenant-scoped entity is automatically
@@ -177,13 +190,216 @@ public class AppDbContext : DbContext
     public override int SaveChanges()
     {
         Stamp();
+        AddAuditEntries();
         return base.SaveChanges();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         Stamp();
+        AddAuditEntries();
         return base.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>Columns that say nothing a reader of the audit trail cares
+    /// about — the row's identity, its tenant, and the stamps the audit entry
+    /// already records more directly.</summary>
+    private static readonly HashSet<string> AuditIgnoredProperties =
+    [
+        nameof(BaseEntity.Id),
+        nameof(BaseEntity.CreatedAt),
+        nameof(BaseEntity.UpdatedAt),
+        nameof(BaseEntity.CreatedByUserId),
+        nameof(BaseEntity.UpdatedByUserId),
+        nameof(ITenantEntity.CompanyId)
+    ];
+
+    /// <summary>
+    /// Writes the audit trail by reading the ChangeTracker just before the
+    /// save. Doing it here rather than in each service means every write path
+    /// is covered — including any added later — with no per-service call to
+    /// remember, and it lands in the same transaction as the change itself,
+    /// so a record and its audit entry can never disagree.
+    /// </summary>
+    private void AddAuditEntries()
+    {
+        // Snapshot first: adding audit rows below mutates the tracker, and
+        // enumerating it while it changes would throw.
+        var tracked = ChangeTracker.Entries()
+            .Where(e => e.Entity is IAuditable
+                        && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+            .ToList();
+
+        if (tracked.Count == 0) return;
+
+        var userId = _currentUser.UserId;
+        var now = DateTime.Now;
+        var logs = new List<AuditLog>(tracked.Count);
+
+        foreach (var entry in tracked)
+        {
+            var entityType = entry.Entity.GetType().Name;
+
+            // A soft delete arrives as a Modified entry with IsDeleted going
+            // false -> true. Report it as the deletion it actually is, so the
+            // trail reads the way the user experienced it.
+            var softDeleted = entry.State == EntityState.Modified
+                              && entry.Property(nameof(BaseEntity.IsDeleted)) is { } flag
+                              && flag.IsModified
+                              && Equals(flag.CurrentValue, true);
+
+            var action = entry.State switch
+            {
+                EntityState.Added => AuditAction.Created,
+                EntityState.Deleted => AuditAction.Deleted,
+                _ => softDeleted ? AuditAction.Deleted : AuditAction.Updated
+            };
+
+            var changes = action == AuditAction.Updated ? DescribeChanges(entry) : null;
+
+            // An edit that touched nothing a reader cares about (only the
+            // stamps, say) isn't worth a row.
+            if (action == AuditAction.Updated && changes is null) continue;
+
+            logs.Add(new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                CompanyId = TenantIdOf(entry) ?? CurrentCompanyId,
+                EntityType = entityType,
+                EntityId = entry.Property(nameof(BaseEntity.Id)).CurrentValue is Guid id ? id : Guid.Empty,
+                TripId = TripIdOf(entry),
+                Action = action,
+                ChangedByUserId = userId,
+                ChangedOn = now,
+                Summary = Describe(entityType, action, entry),
+                Changes = changes,
+                CreatedAt = now,
+                CreatedByUserId = userId
+            });
+        }
+
+        if (logs.Count > 0) AuditLogs.AddRange(logs);
+    }
+
+    private static Guid? TenantIdOf(EntityEntry entry) =>
+        entry.Entity is ITenantEntity { CompanyId: var c } && c != Guid.Empty ? c : null;
+
+    /// <summary>The owning trip for the entities that hang off one, so a
+    /// trip's history is a single indexed lookup.</summary>
+    private static Guid? TripIdOf(EntityEntry entry) => entry.Entity switch
+    {
+        Trip t => t.Id,
+        TripExpense e => e.TripId,
+        TripTransaction x => x.TripId,
+        _ => null
+    };
+
+    /// <summary>Field-level detail for an edit, or null when nothing
+    /// meaningful moved.</summary>
+    private static string? DescribeChanges(EntityEntry entry)
+    {
+        var moved = entry.Properties
+            .Where(p => p.IsModified
+                        && !AuditIgnoredProperties.Contains(p.Metadata.Name)
+                        // Raw user ids read as noise — the entry already names
+                        // who made the change, in words.
+                        && !p.Metadata.Name.EndsWith("ByUserId", StringComparison.Ordinal)
+                        && !Equals(p.OriginalValue, p.CurrentValue))
+            .Select(p => new
+            {
+                field = p.Metadata.Name,
+                from = Format(p.OriginalValue),
+                to = Format(p.CurrentValue)
+            })
+            .ToList();
+
+        return moved.Count == 0 ? null : JsonSerializer.Serialize(moved);
+    }
+
+    private static string? Format(object? value) => value switch
+    {
+        null => null,
+        DateTime d => d.ToString("yyyy-MM-dd"),
+        decimal m => m.ToString("0.##"),
+        bool b => b ? "yes" : "no",
+        _ => value.ToString()
+    };
+
+    /// <summary>A plain-English line for the activity feed. Written at capture
+    /// time so it reflects what the app did, and can't drift if the code is
+    /// later reorganised.</summary>
+    private static string Describe(string entityType, AuditAction action, EntityEntry entry)
+    {
+        // The handful of state changes that carry real meaning get named
+        // outright — "Trip closed" tells the story, "Trip of 5,000.00 changed"
+        // does not, and these are precisely the events an audit trail exists
+        // to record.
+        if (action == AuditAction.Updated && Named(entry) is { } named) return named;
+
+        var noun = entityType switch
+        {
+            nameof(Trip) => "Trip",
+            nameof(TripExpense) => "Expense",
+            nameof(TripTransaction) => "Amount received",
+            nameof(VehicleMaintenance) => "Maintenance record",
+            nameof(DriverLedgerEntry) => "Driver ledger entry",
+            _ => entityType
+        };
+
+        var verb = action switch
+        {
+            AuditAction.Created => "added",
+            AuditAction.Deleted => "deleted",
+            _ => "changed"
+        };
+
+        // Money is the thing anyone scanning the feed is looking for, so put
+        // it in the line itself rather than making them open the detail.
+        var amount = entry.Entity switch
+        {
+            TripExpense e => e.Amount,
+            TripTransaction x => x.Amount,
+            VehicleMaintenance m => m.Amount,
+            DriverLedgerEntry d => d.Amount,
+            Trip t => t.Amount,
+            _ => (decimal?)null
+        };
+
+        return amount is { } value
+            ? $"{noun} of {value:N2} {verb}"
+            : $"{noun} {verb}";
+    }
+
+    /// <summary>A purpose-written line for the state transitions worth calling
+    /// out by name, or null to fall back to the generic description.</summary>
+    private static string? Named(EntityEntry entry)
+    {
+        bool Changed(string property) =>
+            entry.Properties.Any(p => p.Metadata.Name == property && p.IsModified
+                                      && !Equals(p.OriginalValue, p.CurrentValue));
+
+        switch (entry.Entity)
+        {
+            case Trip trip when Changed(nameof(Trip.Status)):
+                return trip.Status == TripStatus.Closed ? "Trip closed" : "Trip reopened";
+
+            case Trip when Changed(nameof(Trip.LrNo)):
+                return "LR number assigned";
+
+            case Trip when Changed(nameof(Trip.BillNo)):
+                return "Bill number assigned";
+
+            case TripTransaction t when Changed(nameof(TripTransaction.ApprovalStatus)):
+                return t.ApprovalStatus switch
+                {
+                    ApprovalStatus.Approved => $"Amount of {t.Amount:N2} approved",
+                    ApprovalStatus.Rejected => $"Amount of {t.Amount:N2} rejected",
+                    _ => null
+                };
+
+            default:
+                return null;
+        }
     }
 
     private void Stamp()
