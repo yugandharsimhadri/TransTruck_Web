@@ -63,7 +63,38 @@ public static class DbBootstrapper
         return Path.Combine(root, leaf);
     }
 
-    public static string ConnectionString => $"Data Source={DatabasePath}";
+    /// <summary>
+    /// The desktop app opened this database from a single process with one
+    /// user; the API serves concurrent requests, so the connection has to say
+    /// so. "Default Timeout" installs SQLite's busy handler — without it a
+    /// second writer arriving mid-transaction fails immediately with
+    /// "database is locked" instead of waiting the moment it takes for the
+    /// first to finish. Paired with WAL journalling (set once in
+    /// <see cref="EnableConcurrentAccessAsync"/>), which lets readers carry on
+    /// while a write is in flight rather than blocking on it.
+    /// </summary>
+    public static string ConnectionString =>
+        $"Data Source={DatabasePath};Default Timeout=30;Pooling=True";
+
+    /// <summary>Switches the database file into write-ahead logging mode. A
+    /// persistent property of the file, so this only has to succeed once, but
+    /// it's cheap to assert on every startup and self-heals a file copied
+    /// from somewhere else.</summary>
+    private static async Task EnableConcurrentAccessAsync(AppDbContext db)
+    {
+        try
+        {
+            await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode=WAL;");
+            await db.Database.ExecuteSqlRawAsync("PRAGMA synchronous=NORMAL;");
+        }
+        catch (Exception ex)
+        {
+            // Worth knowing about, never worth refusing to start over: the
+            // app still works in the default rollback-journal mode, just with
+            // less write concurrency.
+            AppLog.Warn($"Could not enable WAL mode ({ex.Message}). Continuing with the default journal mode.");
+        }
+    }
 
     /// <summary>Applies migrations and takes a dated backup first. Unlike the
     /// single-tenant desktop product, this never seeds a default company or
@@ -97,6 +128,8 @@ public static class DbBootstrapper
         }
 
         await db.Database.MigrateAsync();
+
+        await EnableConcurrentAccessAsync(db);
     }
 
     /// <summary>The newest backup on disk, or null if there has never been one.</summary>

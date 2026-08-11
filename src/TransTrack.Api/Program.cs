@@ -139,6 +139,12 @@ builder.Services.AddControllers()
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o =>
     o.SuppressModelStateInvalidFilter = true);
 
+// One place that turns a broken business rule into a 400 and anything
+// unexpected into a logged 500 — see ApiExceptionHandler for why this is
+// central rather than a try/catch per endpoint.
+builder.Services.AddExceptionHandler<TransTrack.Api.ApiExceptionHandler>();
+builder.Services.AddProblemDetails();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
@@ -174,6 +180,12 @@ using (var scope = app.Services.CreateScope())
     var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>();
     await DbBootstrapper.InitialiseAsync(factory);
 }
+
+// Before everything else, so it catches whatever the pipeline throws. This
+// deliberately replaces the developer exception page even in Development:
+// the client should see the same shaped response in both environments, and
+// the full detail still goes to the log.
+app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {

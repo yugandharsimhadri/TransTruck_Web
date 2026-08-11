@@ -16,8 +16,15 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         .Include(t => t.Party)
         .Include(t => t.FromCity).ThenInclude(c => c.State)
         .Include(t => t.ToCity).ThenInclude(c => c.State)
-        .Include(t => t.Expenses.Where(e => !e.IsDeleted)).ThenInclude(e => e.ExpenseCategory)
-        .Include(t => t.Transactions.Where(x => !x.IsDeleted));
+        // Ordered, not just filtered: without an explicit sort SQLite is free
+        // to return these rows in any order, so a list of money entries could
+        // reshuffle between one page load and the next. Oldest first reads as
+        // a running log, which is how people work down a trip's costs.
+        .Include(t => t.Expenses.Where(e => !e.IsDeleted)
+            .OrderBy(e => e.Date).ThenBy(e => e.CreatedAt))
+        .ThenInclude(e => e.ExpenseCategory)
+        .Include(t => t.Transactions.Where(x => !x.IsDeleted)
+            .OrderBy(x => x.Date).ThenBy(x => x.CreatedAt));
 
     public async Task<List<Trip>> GetTripsAsync()
     {
@@ -77,8 +84,15 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         if (string.IsNullOrWhiteSpace(trip.ConsignorName)) throw new InvalidOperationException("Consignor name is required.");
         if (string.IsNullOrWhiteSpace(trip.ConsigneeName)) throw new InvalidOperationException("Consignee name is required.");
 
-        await using var db = await factory.CreateDbContextAsync();
+        // Booking allocates a trip number, so it goes through the retrying
+        // allocator: two people booking at the same instant must get TRP00007
+        // and TRP00008, not a collision on the unique index.
+        return await NumberService.AllocateAsync(factory, async db =>
+            await SaveTripCoreAsync(db, trip));
+    }
 
+    private static async Task<Guid> SaveTripCoreAsync(AppDbContext db, Trip trip)
+    {
         var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == trip.VehicleId)
                       ?? throw new InvalidOperationException("Vehicle not found.");
 
@@ -178,16 +192,17 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
     /// <summary>Assigns the LR number on first print and reuses it on every
     /// reprint. Returns whether this was the first print.</summary>
     public async Task<(string LrNo, bool IsFirstPrint)> AssignLrNumberAsync(Guid tripId)
-    {
-        await using var db = await factory.CreateDbContextAsync();
-        var trip = await db.Trips.FirstOrDefaultAsync(t => t.Id == tripId) ?? throw new InvalidOperationException("Trip not found.");
+        => await NumberService.AllocateAsync(factory, async db =>
+        {
+            var trip = await db.Trips.FirstOrDefaultAsync(t => t.Id == tripId)
+                       ?? throw new InvalidOperationException("Trip not found.");
 
-        if (!string.IsNullOrWhiteSpace(trip.LrNo)) return (trip.LrNo, false);
+            if (!string.IsNullOrWhiteSpace(trip.LrNo)) return (trip.LrNo, false);
 
-        trip.LrNo = await NumberService.NextAsync(db, NumberService.Lr);
-        await db.SaveChangesAsync();
-        return (trip.LrNo, true);
-    }
+            trip.LrNo = await NumberService.NextAsync(db, NumberService.Lr);
+            await db.SaveChangesAsync();
+            return (trip.LrNo, true);
+        });
 
     // ── Close / reopen ────────────────────────────────────────────────────
 
@@ -219,16 +234,17 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
     }
 
     public async Task<(string BillNo, bool IsFirstPrint)> AssignBillNumberAsync(Guid tripId)
-    {
-        await using var db = await factory.CreateDbContextAsync();
-        var trip = await db.Trips.FirstOrDefaultAsync(t => t.Id == tripId) ?? throw new InvalidOperationException("Trip not found.");
+        => await NumberService.AllocateAsync(factory, async db =>
+        {
+            var trip = await db.Trips.FirstOrDefaultAsync(t => t.Id == tripId)
+                       ?? throw new InvalidOperationException("Trip not found.");
 
-        if (!string.IsNullOrWhiteSpace(trip.BillNo)) return (trip.BillNo, false);
+            if (!string.IsNullOrWhiteSpace(trip.BillNo)) return (trip.BillNo, false);
 
-        trip.BillNo = await NumberService.NextAsync(db, NumberService.Bill);
-        await db.SaveChangesAsync();
-        return (trip.BillNo, true);
-    }
+            trip.BillNo = await NumberService.NextAsync(db, NumberService.Bill);
+            await db.SaveChangesAsync();
+            return (trip.BillNo, true);
+        });
 }
 
 /// <summary>One row of the trips list — flat, and only what that screen

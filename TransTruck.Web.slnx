@@ -4,4 +4,7 @@
     <Project Path="src/TransTrack.Core/TransTrack.Core.csproj" />
     <Project Path="src/TransTrack.Data/TransTrack.Data.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TransTrack.Tests/TransTrack.Tests.csproj" />
+  </Folder>
 </Solution>

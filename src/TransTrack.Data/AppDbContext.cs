@@ -97,7 +97,19 @@ public class AppDbContext : DbContext
         b.Entity<ExpenseCategory>(e => e.HasIndex(x => x.Name));
         b.Entity<MaintenanceCategory>(e => e.HasIndex(x => x.Name));
 
-        b.Entity<Counter>(e => e.HasIndex(x => new { x.CompanyId, x.Name }).IsUnique());
+        b.Entity<Counter>(e =>
+        {
+            e.HasIndex(x => new { x.CompanyId, x.Name }).IsUnique();
+
+            // The counter's own value is its concurrency token: EF puts the
+            // value it read into the UPDATE's WHERE clause, so if another
+            // request incremented the counter in between, zero rows match and
+            // the save throws instead of silently issuing a duplicate
+            // document number. NumberService.AllocateAsync catches that and
+            // retries. Without this, two concurrent bookings both produce the
+            // same TripNo and the unique index rejects one with a raw error.
+            e.Property(x => x.LastNumber).IsConcurrencyToken();
+        });
 
         b.Entity<User>(e =>
         {
