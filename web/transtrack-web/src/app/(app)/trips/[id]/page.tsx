@@ -186,31 +186,25 @@ export default function TripDetailPage() {
           <Button
             size="lg"
             nativeButton={false}
-            className="h-16 justify-start gap-3 text-base"
+            className="h-14 justify-start gap-3 text-base font-semibold"
             render={<Link href={`/trips/${trip.id}/expenses/new`} />}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-foreground/20">
               <Receipt className="h-5 w-5" />
             </span>
-            <span className="flex flex-col items-start leading-tight">
-              <span className="font-semibold">Add expense</span>
-              <span className="text-xs font-normal opacity-80">Fuel, toll, repair…</span>
-            </span>
+            Add expense
           </Button>
           <Button
             size="lg"
             variant="outline"
             nativeButton={false}
-            className="h-16 justify-start gap-3 text-base"
+            className="h-14 justify-start gap-3 text-base font-semibold"
             render={<Link href={`/trips/${trip.id}/amount/new`} />}
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
               <Wallet className="h-5 w-5" />
             </span>
-            <span className="flex flex-col items-start leading-tight">
-              <span className="font-semibold">Amount received</span>
-              <span className="text-xs font-normal text-muted-foreground">Cash, UPI, bank…</span>
-            </span>
+            Amount received
           </Button>
         </div>
       )}
