@@ -5,10 +5,11 @@ import { VehiclesTab } from "@/components/masters/vehicles-tab";
 import { DriversTab } from "@/components/masters/drivers-tab";
 import { PartiesTab } from "@/components/masters/parties-tab";
 import { CitiesStatesTab } from "@/components/masters/cities-states-tab";
+import { PageContainer } from "@/components/shell/page-container";
 
 export default function MastersPage() {
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <h1 className="text-xl font-semibold">Masters</h1>
 
       <Tabs defaultValue="vehicles">
@@ -23,6 +24,6 @@ export default function MastersPage() {
         <TabsContent value="parties"><PartiesTab /></TabsContent>
         <TabsContent value="places"><CitiesStatesTab /></TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }

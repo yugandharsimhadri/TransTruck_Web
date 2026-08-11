@@ -19,6 +19,7 @@ import {
   Plus,
   TrendingUp,
 } from "lucide-react";
+import { PageContainer } from "@/components/shell/page-container";
 
 /**
  * The dashboard's job is to answer two questions in the first screenful:
@@ -52,7 +53,7 @@ export default function DashboardPage() {
   const thisMonth = new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
   return (
-    <div className="space-y-5 p-4 sm:p-6">
+    <PageContainer className="space-y-5">
       {/* One quiet line of context. The old greeting spent the most valuable
           pixels on a phone telling users their own name. */}
       <div className="flex items-baseline justify-between gap-3">
@@ -191,7 +192,7 @@ export default function DashboardPage() {
       >
         <Plus className="h-5 w-5" /> Book a trip
       </Button>
-    </div>
+    </PageContainer>
   );
 }
 

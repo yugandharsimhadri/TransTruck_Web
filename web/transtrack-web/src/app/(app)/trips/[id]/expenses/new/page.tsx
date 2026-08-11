@@ -115,7 +115,7 @@ export default function AddExpensePage() {
                 key={a}
                 type="button"
                 onClick={() => setAmount(String(a))}
-                className="min-h-11 rounded-full border px-5 py-2.5 text-base font-medium transition hover:bg-accent md:min-h-0 md:px-3.5 md:py-1.5 md:text-sm"
+                className="min-h-11 rounded-full border px-5 py-2.5 text-base font-medium transition hover:bg-accent desktop:min-h-0 desktop:px-3.5 desktop:py-1.5 desktop:text-sm"
               >
                 ₹{a}
               </button>

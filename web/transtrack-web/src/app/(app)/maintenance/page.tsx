@@ -15,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageContainer } from "@/components/shell/page-container";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -40,7 +41,7 @@ export default function MaintenancePage() {
   const totalAmount = recordsQuery.data?.reduce((sum, r) => sum + r.amount, 0) ?? 0;
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Maintenance</h1>
         {vehicleId && (
@@ -105,7 +106,7 @@ export default function MaintenancePage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

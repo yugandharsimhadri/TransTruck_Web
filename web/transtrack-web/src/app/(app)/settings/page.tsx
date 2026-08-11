@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageContainer } from "@/components/shell/page-container";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
 import type { Company, UserSummary, UserRole } from "@/lib/types";
@@ -33,7 +34,7 @@ export default function SettingsPage() {
 
 function SettingsScreen() {
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <h1 className="text-xl font-semibold">Settings</h1>
       <Tabs defaultValue="company">
         <TabsList>
@@ -43,7 +44,7 @@ function SettingsScreen() {
         <TabsContent value="company"><CompanyTab /></TabsContent>
         <TabsContent value="users"><UsersTab /></TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -134,7 +135,7 @@ function CompanyTab() {
           )}
         </div>
         <div>
-          <Label htmlFor="logo" className="flex h-11 w-fit cursor-pointer items-center gap-2 rounded-full border px-4 text-sm font-medium hover:bg-accent md:h-10">
+          <Label htmlFor="logo" className="flex h-11 w-fit cursor-pointer items-center gap-2 rounded-full border px-4 text-sm font-medium hover:bg-accent desktop:h-10">
             <ImagePlus className="h-4 w-4" /> {logoBase64 ? "Change logo" : "Upload logo"}
           </Label>
           <input id="logo" type="file" accept="image/*" className="hidden" onChange={onLogoChange} />

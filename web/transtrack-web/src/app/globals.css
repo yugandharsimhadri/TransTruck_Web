@@ -4,6 +4,22 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * "Desktop" means a wide screen *driven by a mouse* — not merely a wide one.
+ *
+ * Control sizes used to shrink at md: (768px) on the assumption that wide
+ * implies pointer. Tablets break that: an iPad is 768-1024px wide and
+ * operated by fingers, so it was getting 28-36px tap targets while a phone
+ * got 44px. Requiring `pointer: fine` as well keeps the comfortable touch
+ * sizes on every touch device regardless of width, and hands the compact
+ * sizes only to actual mouse users.
+ *
+ * Use this for anything size-related. Layout switches that genuinely depend
+ * on available width — the sidebar replacing the bottom tab bar, grid column
+ * counts — stay on plain md:.
+ */
+@custom-variant desktop (@media (min-width: 768px) and (pointer: fine));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

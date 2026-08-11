@@ -21,20 +21,30 @@ export interface NavItem {
   roles?: UserRole[];
 }
 
-/** The bottom tab bar on mobile — kept to five so it never crowds. */
+/**
+ * Navigation order, most-used first:
+ *   Dashboard, Trips, Approvals, Maintenance, Driver Ledger, Reports,
+ *   Masters, Activity, Settings.
+ *
+ * The desktop sidebar shows all of it in that order; the mobile tab bar takes
+ * the top four and puts the rest behind "More", keeping the bar at five slots
+ * so it never crowds. Masters sits with the other reference screens rather
+ * than in the tab bar — it's set up once and rarely revisited, unlike
+ * recording a day's maintenance.
+ */
 export const primaryNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/trips", label: "Trips", icon: Truck },
   { href: "/approvals", label: "Approvals", icon: CheckCircle2, roles: ["Owner"] },
-  { href: "/masters", label: "Masters", icon: Database },
+  { href: "/maintenance", label: "Maintenance", icon: Wrench },
 ];
 
 /** Everything else — reached via "More" on mobile, shown directly in the
  * desktop sidebar (which has the room for it). */
 export const moreNavItems: NavItem[] = [
-  { href: "/maintenance", label: "Maintenance", icon: Wrench },
   { href: "/driver-ledger", label: "Driver Ledger", icon: BookUser },
   { href: "/reports", label: "Reports", icon: BarChart3 },
+  { href: "/masters", label: "Masters", icon: Database },
   { href: "/activity", label: "Activity", icon: History, roles: ["Owner", "CoOwner"] },
   { href: "/settings", label: "Settings", icon: Settings, roles: ["Owner", "CoOwner"] },
 ];

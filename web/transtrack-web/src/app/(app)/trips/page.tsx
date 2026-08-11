@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageContainer } from "@/components/shell/page-container";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
 import type { TripListItem } from "@/lib/types";
@@ -32,7 +33,7 @@ export default function TripsPage() {
   );
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Trips</h1>
         <Button
@@ -86,6 +87,6 @@ export default function TripsPage() {
           />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

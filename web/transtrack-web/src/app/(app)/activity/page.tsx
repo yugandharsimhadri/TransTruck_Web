@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageContainer } from "@/components/shell/page-container";
 import { api } from "@/lib/api";
 import type { AuditEntry } from "@/lib/types";
 import { AuditTrail } from "@/components/audit-trail";
@@ -52,7 +53,7 @@ function ActivityScreen() {
   });
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <div>
         <h1 className="text-xl font-semibold">Activity</h1>
         <p className="text-sm text-muted-foreground">
@@ -100,6 +101,6 @@ function ActivityScreen() {
           </CardContent>
         </Card>
       )}
-    </div>
+    </PageContainer>
   );
 }

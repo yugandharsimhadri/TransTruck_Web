@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PageContainer } from "@/components/shell/page-container";
 import { ChevronRight, LogOut } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { visibleMoreNavItems } from "@/components/shell/nav-items";
@@ -10,7 +11,7 @@ export default function MorePage() {
   const items = visibleMoreNavItems(user?.role);
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
+    <PageContainer className="space-y-6">
       <h1 className="text-xl font-semibold">More</h1>
 
       <div className="overflow-hidden rounded-2xl border">
@@ -36,6 +37,6 @@ export default function MorePage() {
         <LogOut className="h-[18px] w-[18px]" />
         Sign out
       </button>
-    </div>
+    </PageContainer>
   );
 }

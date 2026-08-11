@@ -43,7 +43,37 @@ export function VehiclesTab() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      {/* Cards on a phone, table on a wide screen. A five-column table is
+          419px at its narrowest, so on a 320px screen a quarter of it sat off
+          the edge behind a sideways scroll — while every other list in the app
+          is a stacked card. The table earns its place above md, where the
+          density genuinely helps scanning a long fleet. */}
+      <div className="space-y-2 md:hidden">
+        {vehiclesQuery.data?.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() => setEditing(v)}
+            className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99]"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{v.regNo}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {v.vehicleType ?? "No type"} · {v.ownership === "Own" ? "Own" : v.owner?.name ?? "Other owner"}
+              </p>
+            </div>
+            <Badge variant={v.isActive ? "success" : "secondary"} className="shrink-0">
+              {v.isActive ? "Active" : "Inactive"}
+            </Badge>
+            <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+        {vehiclesQuery.data?.length === 0 && (
+          <p className="py-4 text-sm text-muted-foreground">No vehicles yet.</p>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border md:block">
         <Table>
           <TableHeader>
             <TableRow>

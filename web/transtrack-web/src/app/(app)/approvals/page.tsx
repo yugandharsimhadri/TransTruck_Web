@@ -12,6 +12,7 @@ import type { TripTransaction } from "@/lib/types";
 import { Check, X } from "lucide-react";
 import { RequireRole } from "@/components/require-role";
 import { TruckEmpty } from "@/components/truck-drive";
+import { PageContainer } from "@/components/shell/page-container";
 
 export default function ApprovalsPage() {
   return (
@@ -49,7 +50,7 @@ function ApprovalsScreen() {
   });
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <h1 className="text-xl font-semibold">Approvals</h1>
 
       <div className="space-y-3">
@@ -101,6 +102,6 @@ function ApprovalsScreen() {
           />
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 }

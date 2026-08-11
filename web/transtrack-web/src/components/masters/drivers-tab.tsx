@@ -30,7 +30,33 @@ export function DriversTab() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      {/* Cards on a phone; the six-column table only above md. */}
+      <div className="space-y-2 md:hidden">
+        {driversQuery.data?.map((d) => (
+          <button
+            key={d.id}
+            type="button"
+            onClick={() => setEditing(d)}
+            className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99]"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{d.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {d.employeeCode} · {d.phone}
+              </p>
+            </div>
+            <Badge variant={d.isActive ? "success" : "secondary"} className="shrink-0">
+              {d.isActive ? "Active" : "Inactive"}
+            </Badge>
+            <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+        {driversQuery.data?.length === 0 && (
+          <p className="py-4 text-sm text-muted-foreground">No drivers yet.</p>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border md:block">
         <Table>
           <TableHeader>
             <TableRow>

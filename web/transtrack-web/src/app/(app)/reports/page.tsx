@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageContainer } from "@/components/shell/page-container";
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api";
 import { shareFile } from "@/lib/share";
@@ -40,7 +41,7 @@ export default function ReportsPage() {
   const qs = params.toString();
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <h1 className="text-xl font-semibold">Reports</h1>
 
       <Card>
@@ -104,7 +105,7 @@ export default function ReportsPage() {
         <TabsContent value="maintenance"><MaintenanceReport qs={qs} /></TabsContent>
         <TabsContent value="ledger"><LedgerReport qs={qs} /></TabsContent>
       </Tabs>
-    </div>
+    </PageContainer>
   );
 }
 

@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { PageContainer } from "@/components/shell/page-container";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
@@ -52,7 +53,7 @@ export default function DriverLedgerPage() {
   });
 
   return (
-    <div className="space-y-4 p-4 sm:p-6">
+    <PageContainer className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Driver Ledger</h1>
         {driverId && (
@@ -113,7 +114,7 @@ export default function DriverLedgerPage() {
           </div>
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

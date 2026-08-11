@@ -29,7 +29,31 @@ export function PartiesTab() {
         </Button>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border">
+      {/* Cards on a phone; the table only above md. */}
+      <div className="space-y-2 md:hidden">
+        {partiesQuery.data?.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => setEditing(p)}
+            className="flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition active:scale-[0.99]"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="truncate font-medium">{p.name}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {p.phone ?? "No phone"}
+                {p.gstin ? ` · ${p.gstin}` : ""}
+              </p>
+            </div>
+            <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        ))}
+        {partiesQuery.data?.length === 0 && (
+          <p className="py-4 text-sm text-muted-foreground">No parties yet.</p>
+        )}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border md:block">
         <Table>
           <TableHeader>
             <TableRow>
