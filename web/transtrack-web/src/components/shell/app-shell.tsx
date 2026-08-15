@@ -12,6 +12,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
@@ -91,10 +92,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>
-                <p className="font-medium">{user?.displayName}</p>
-                <p className="text-xs font-normal text-muted-foreground">{user?.companyName}</p>
-              </DropdownMenuLabel>
+              {/* The Group is not decorative: DropdownMenuLabel renders Base
+                  UI's Menu.GroupLabel, which reads MenuGroupContext and throws
+                  outright when there is no Menu.Group above it. Bare, it takes
+                  the whole shell down with it the moment this menu opens. */}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>
+                  <p className="font-medium">{user?.displayName}</p>
+                  <p className="text-xs font-normal text-muted-foreground">{user?.companyName}</p>
+                </DropdownMenuLabel>
+              </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={logout}>
                 <LogOut className="h-4 w-4" /> Sign out
