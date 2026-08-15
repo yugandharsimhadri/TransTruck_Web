@@ -62,7 +62,7 @@ public class AppDbContext : DbContext
             property.SetScale(2);
         }
 
-        b.Entity<Company>(e => e.Ignore(x => x.HasLogo).Ignore(x => x.IsLicenseValid));
+        b.Entity<Company>(e => e.Ignore(x => x.HasLogo).Ignore(x => x.IsLicenseValid).Ignore(x => x.CanPrintBankDetails));
 
         b.Entity<State>(e => e.HasIndex(x => x.Name));
 

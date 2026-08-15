@@ -34,6 +34,28 @@ public class ReportsController(ReportsService reports, MasterDataService masters
         [FromQuery] DateTime? from, [FromQuery] DateTime? to, [FromQuery] VehicleOwnership? ownership)
         => Ok(await reports.GetLedgerAsync(vehicleId, driverId, from, to, ownership));
 
+    /// <summary>One party's trips for a period. Unlike the other reports this
+    /// needs its party — there is no "all parties" version, since the report
+    /// exists to be handed to one party.</summary>
+    [HttpGet("party")]
+    public async Task<ActionResult<PartyReport>> GetPartyReport(
+        [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        try
+        {
+            return Ok(await reports.GetPartyReportAsync(partyId, from, to));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("vehicle-savings")]
+    public async Task<ActionResult<List<VehicleMonthlySaving>>> GetVehicleSavings(
+        [FromQuery] Guid? vehicleId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+        => Ok(await reports.GetVehicleSavingsAsync(vehicleId, from, to));
+
     // ── Exports ──────────────────────────────────────────────────────────────
 
     [HttpGet("trips/export.pdf")]
@@ -95,6 +117,68 @@ public class ReportsController(ReportsService reports, MasterDataService masters
         var rows = await reports.GetLedgerAsync(vehicleId, driverId, from, to, ownership);
         var xlsx = ReportExcelBuilder.BuildLedger(rows);
         return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "transactions-report.xlsx");
+    }
+
+    [HttpGet("party/export.pdf")]
+    public async Task<IActionResult> ExportPartyPdf(
+        [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        try
+        {
+            var report = await reports.GetPartyReportAsync(partyId, from, to);
+            var company = await masters.GetCompanyAsync();
+            var pdf = ReportPdfBuilder.BuildPartyReport(report, company);
+            return File(pdf, "application/pdf", $"{Slug(report.PartyName)}-report.pdf");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("party/export.xlsx")]
+    public async Task<IActionResult> ExportPartyExcel(
+        [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        try
+        {
+            var report = await reports.GetPartyReportAsync(partyId, from, to);
+            var xlsx = ReportExcelBuilder.BuildPartyReport(report);
+            return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{Slug(report.PartyName)}-report.xlsx");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpGet("vehicle-savings/export.pdf")]
+    public async Task<IActionResult> ExportVehicleSavingsPdf(
+        [FromQuery] Guid? vehicleId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        var rows = await reports.GetVehicleSavingsAsync(vehicleId, from, to);
+        var company = await masters.GetCompanyAsync();
+        var pdf = ReportPdfBuilder.BuildVehicleSavings(rows, company, FilterSummary(from, to, null));
+        return File(pdf, "application/pdf", "vehicle-savings-report.pdf");
+    }
+
+    [HttpGet("vehicle-savings/export.xlsx")]
+    public async Task<IActionResult> ExportVehicleSavingsExcel(
+        [FromQuery] Guid? vehicleId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        var rows = await reports.GetVehicleSavingsAsync(vehicleId, from, to);
+        var xlsx = ReportExcelBuilder.BuildVehicleSavings(rows);
+        return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "vehicle-savings-report.xlsx");
+    }
+
+    /// <summary>A party name reduced to something safe for a download
+    /// filename — a name with a slash or a quote in it must not produce a
+    /// broken Content-Disposition header.</summary>
+    private static string Slug(string name)
+    {
+        var cleaned = new string(name.Select(c => char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '-').ToArray());
+        cleaned = string.Join('-', cleaned.Split('-', StringSplitOptions.RemoveEmptyEntries));
+        return string.IsNullOrWhiteSpace(cleaned) ? "party" : cleaned;
     }
 
     private static string FilterSummary(DateTime? from, DateTime? to, VehicleOwnership? ownership)

@@ -112,4 +112,118 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
 
         return rows.OrderByDescending(r => r.Date).ToList();
     }
+
+    /// <summary>Every trip billed to one party over a period, oldest first —
+    /// the running statement a party is sent at month end. Ordered ascending
+    /// (unlike the other reports) because the serial numbers are only
+    /// meaningful counting forwards through the month.</summary>
+    public async Task<PartyReport> GetPartyReportAsync(Guid partyId, DateTime? from, DateTime? to)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+
+        var party = await db.Parties.AsNoTracking().FirstOrDefaultAsync(p => p.Id == partyId)
+                    ?? throw new InvalidOperationException("Party not found.");
+
+        var query = db.Trips.AsNoTracking()
+            .Include(t => t.Vehicle)
+            .Include(t => t.FromCity)
+            .Include(t => t.ToCity)
+            .Where(t => !t.IsDeleted && t.PartyId == partyId);
+
+        if (from is { } f) query = query.Where(t => t.Date >= f.Date);
+        if (to is { } t2) query = query.Where(t => t.Date <= t2.Date);
+
+        var trips = await query.OrderBy(t => t.Date).ThenBy(t => t.TripNo).ToListAsync();
+
+        var rows = trips.Select((t, i) => new PartyTripRow(
+            i + 1, t.Date, t.Vehicle.RegNo, t.FromCity.Name, t.ToCity.Name,
+            t.Weight, t.Rate, t.Amount)).ToList();
+
+        return new PartyReport(party.Name, DescribePeriod(from, to), rows);
+    }
+
+    /// <summary>The period as it appears in the report title. A range landing
+    /// inside a single calendar month prints as "JULY-2026", matching the
+    /// customer's existing paper report; anything else spells out both ends
+    /// rather than pretending to be one month.</summary>
+    public static string DescribePeriod(DateTime? from, DateTime? to)
+    {
+        if (from is { } f && to is { } t)
+        {
+            return f.Year == t.Year && f.Month == t.Month
+                ? f.ToString("MMMM-yyyy").ToUpperInvariant()
+                : $"{f:dd-MMM-yyyy} to {t:dd-MMM-yyyy}";
+        }
+
+        if (from is { } onlyFrom) return $"From {onlyFrom:dd-MMM-yyyy}";
+        if (to is { } onlyTo) return $"To {onlyTo:dd-MMM-yyyy}";
+        return "ALL DATES";
+    }
+
+    /// <summary>Per vehicle, per calendar month: what the company earned,
+    /// what it spent, and what it kept. Maintenance is counted alongside trip
+    /// expenses because a vehicle's real cost for a month includes what it
+    /// took to keep it on the road, not just what its trips burned in fuel.</summary>
+    public async Task<List<VehicleMonthlySaving>> GetVehicleSavingsAsync(Guid? vehicleId, DateTime? from, DateTime? to)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+
+        var tripQuery = db.Trips.AsNoTracking()
+            .Include(t => t.Vehicle)
+            .Include(t => t.Expenses.Where(e => !e.IsDeleted))
+            .Where(t => !t.IsDeleted);
+
+        var maintenanceQuery = db.VehicleMaintenances.AsNoTracking()
+            .Include(m => m.Vehicle)
+            .Where(m => !m.IsDeleted);
+
+        if (vehicleId is { } v)
+        {
+            tripQuery = tripQuery.Where(t => t.VehicleId == v);
+            maintenanceQuery = maintenanceQuery.Where(m => m.VehicleId == v);
+        }
+        if (from is { } f)
+        {
+            tripQuery = tripQuery.Where(t => t.Date >= f.Date);
+            maintenanceQuery = maintenanceQuery.Where(m => m.Date >= f.Date);
+        }
+        if (to is { } t2)
+        {
+            tripQuery = tripQuery.Where(t => t.Date <= t2.Date);
+            maintenanceQuery = maintenanceQuery.Where(m => m.Date <= t2.Date);
+        }
+
+        var trips = await tripQuery.ToListAsync();
+        var maintenance = await maintenanceQuery.ToListAsync();
+
+        // Keyed on (vehicle, year, month) so a vehicle with no trips in a
+        // month it was nonetheless serviced in still shows up — that month's
+        // maintenance is a real cost and hiding it would overstate savings.
+        var buckets = new Dictionary<(string Vehicle, int Year, int Month), (int Trips, decimal Revenue, decimal Expenses, decimal Maintenance)>();
+
+        foreach (var t in trips)
+        {
+            var key = (t.Vehicle.RegNo, t.Date.Year, t.Date.Month);
+            var current = buckets.GetValueOrDefault(key);
+            buckets[key] = (current.Trips + 1,
+                current.Revenue + t.CompanyRevenue,
+                current.Expenses + t.CompanyExpenses,
+                current.Maintenance);
+        }
+
+        foreach (var m in maintenance)
+        {
+            var key = (m.Vehicle.RegNo, m.Date.Year, m.Date.Month);
+            var current = buckets.GetValueOrDefault(key);
+            buckets[key] = (current.Trips, current.Revenue, current.Expenses, current.Maintenance + m.Amount);
+        }
+
+        return buckets
+            .OrderBy(b => b.Key.Vehicle).ThenByDescending(b => b.Key.Year).ThenByDescending(b => b.Key.Month)
+            .Select(b => new VehicleMonthlySaving(
+                b.Key.Vehicle,
+                new DateTime(b.Key.Year, b.Key.Month, 1).ToString("MMM yyyy"),
+                b.Value.Trips, b.Value.Revenue, b.Value.Expenses, b.Value.Maintenance))
+            .ToList();
+    }
 }

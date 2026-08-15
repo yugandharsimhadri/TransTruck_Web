@@ -191,13 +191,29 @@ public class Company : BaseEntity
 
     /// <summary>The uploaded logo, stored inline as base64 — small enough
     /// (a letterhead mark, not a photo) that a separate file or table is
-    /// more ceremony than the data warrants. Printed on the Bill and on
-    /// report exports; never on the LR, which is pre-printed stationery
-    /// that already carries the company's letterhead on paper.</summary>
+    /// more ceremony than the data warrants. Printed on every generated
+    /// document: the Bill, the LR, and report exports.</summary>
     public string? LogoBase64 { get; set; }
     public string? LogoFileName { get; set; }
 
     public bool HasLogo => !string.IsNullOrWhiteSpace(LogoBase64);
+
+    // ── Bank details (optionally printed on the Bill) ────────────────────
+
+    public string? BankAccountNo { get; set; }
+    public string? Ifsc { get; set; }
+
+    /// <summary>Whether to print the bank details on the Cash Bill. Off by
+    /// default: a company that hasn't opted in must never start leaking its
+    /// account number onto documents just because the fields exist.</summary>
+    public bool ShowBankDetailsOnBill { get; set; }
+
+    /// <summary>Bank details are only printable when the company asked for
+    /// them *and* actually filled them in — a toggle switched on against
+    /// empty fields prints nothing rather than an empty labelled row.</summary>
+    public bool CanPrintBankDetails =>
+        ShowBankDetailsOnBill
+        && (!string.IsNullOrWhiteSpace(BankAccountNo) || !string.IsNullOrWhiteSpace(Ifsc));
 
     /// <summary>The chosen theme, applied on startup and whenever the
     /// sidebar toggle is flipped — so it survives to the next launch.</summary>
@@ -288,6 +304,11 @@ public class Trip : BaseEntity, ITenantEntity, IAuditable
 
     /// <summary>Assigned by NumberService on first LR print; reused on every reprint.</summary>
     public string? LrNo { get; set; }
+
+    /// <summary>The carrier's own way bill number for this trip, captured by
+    /// hand rather than allocated — optional, and printed on the LR only when
+    /// it was actually entered.</summary>
+    public string? WayBillNo { get; set; }
 
     /// <summary>Assigned by NumberService on first Bill print; reused on every reprint.</summary>
     public string? BillNo { get; set; }

@@ -96,6 +96,69 @@ public static class ReportExcelBuilder
         return ToBytes(workbook);
     }
 
+    public static byte[] BuildPartyReport(PartyReport report)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Party report");
+
+        // The title line the paper report carries, kept above the header row
+        // so the exported sheet is self-describing once it leaves the app.
+        sheet.Cell(1, 1).Value = $"{report.PartyName.ToUpperInvariant()} {report.PeriodLabel}";
+        sheet.Range(1, 1, 1, 8).Merge().Style.Font.Bold = true;
+
+        string[] headers = ["S NO", "DATE", "VEHICLE NO", "FROM", "TO", "WEIGHT", "RATE", "AMOUNT"];
+        for (var i = 0; i < headers.Length; i++) sheet.Cell(2, i + 1).Value = headers[i];
+        sheet.Row(2).Style.Font.Bold = true;
+
+        var row = 3;
+        foreach (var r in report.Rows)
+        {
+            sheet.Cell(row, 1).Value = r.SerialNo;
+            sheet.Cell(row, 2).Value = r.Date;
+            sheet.Cell(row, 3).Value = r.VehicleRegNo;
+            sheet.Cell(row, 4).Value = r.FromCity;
+            sheet.Cell(row, 5).Value = r.ToCity;
+            sheet.Cell(row, 6).Value = r.Weight;
+            sheet.Cell(row, 7).Value = r.Rate;
+            sheet.Cell(row, 8).Value = r.Amount;
+            row++;
+        }
+
+        sheet.Cell(row, 7).Value = "TOTAL";
+        sheet.Cell(row, 8).Value = report.Total;
+        sheet.Row(row).Style.Font.Bold = true;
+
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
+    public static byte[] BuildVehicleSavings(IReadOnlyList<VehicleMonthlySaving> rows)
+    {
+        using var workbook = new XLWorkbook();
+        var sheet = workbook.Worksheets.Add("Vehicle savings");
+
+        string[] headers = ["Vehicle", "Month", "Trips", "Revenue", "Trip expenses", "Maintenance", "Saving", "Saving per trip"];
+        for (var i = 0; i < headers.Length; i++) sheet.Cell(1, i + 1).Value = headers[i];
+        sheet.Row(1).Style.Font.Bold = true;
+
+        var row = 2;
+        foreach (var r in rows)
+        {
+            sheet.Cell(row, 1).Value = r.VehicleRegNo;
+            sheet.Cell(row, 2).Value = r.MonthLabel;
+            sheet.Cell(row, 3).Value = r.Trips;
+            sheet.Cell(row, 4).Value = r.Revenue;
+            sheet.Cell(row, 5).Value = r.TripExpenses;
+            sheet.Cell(row, 6).Value = r.MaintenanceCost;
+            sheet.Cell(row, 7).Value = r.Saving;
+            sheet.Cell(row, 8).Value = r.SavingPerTrip;
+            row++;
+        }
+
+        sheet.Columns().AdjustToContents();
+        return ToBytes(workbook);
+    }
+
     private static byte[] ToBytes(XLWorkbook workbook)
     {
         using var stream = new MemoryStream();

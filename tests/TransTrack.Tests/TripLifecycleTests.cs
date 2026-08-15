@@ -136,8 +136,8 @@ public class TripLifecycleTests
     [InlineData("vehicle")]
     [InlineData("driver")]
     [InlineData("party")]
-    [InlineData("consignor")]
-    [InlineData("consignee")]
+    [InlineData("fromCity")]
+    [InlineData("toCity")]
     public async Task Booking_without_a_required_field_is_refused(string missing)
     {
         await using var world = await TestWorld.CreateAsync();
@@ -148,13 +148,72 @@ public class TripLifecycleTests
             VehicleId = missing == "vehicle" ? Guid.Empty : world.VehicleId,
             DriverId = missing == "driver" ? Guid.Empty : world.DriverId,
             PartyId = missing == "party" ? Guid.Empty : world.PartyId,
-            FromCityId = world.FromCityId,
-            ToCityId = world.ToCityId,
-            ConsignorName = missing == "consignor" ? "" : "Consignor",
-            ConsigneeName = missing == "consignee" ? "" : "Consignee",
+            FromCityId = missing == "fromCity" ? Guid.Empty : world.FromCityId,
+            ToCityId = missing == "toCity" ? Guid.Empty : world.ToCityId,
+            ConsignorName = "Consignor",
+            ConsigneeName = "Consignee",
             Amount = 1000
         };
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => world.Trips.SaveTripAsync(trip));
+    }
+
+    /// <summary>Consignor and consignee used to be mandatory. Plenty of real
+    /// trips are booked against the billing party alone with no separate
+    /// consignor/consignee to name, so a booking that leaves both blank has
+    /// to go through — and the blanks have to survive the round trip rather
+    /// than being rejected or quietly filled in.</summary>
+    [Fact]
+    public async Task Booking_without_consignor_or_consignee_is_allowed()
+    {
+        await using var world = await TestWorld.CreateAsync();
+
+        var id = await world.Trips.SaveTripAsync(new Trip
+        {
+            Date = DateTime.Today,
+            VehicleId = world.VehicleId,
+            DriverId = world.DriverId,
+            PartyId = world.PartyId,
+            FromCityId = world.FromCityId,
+            ToCityId = world.ToCityId,
+            ConsignorName = "",
+            ConsigneeName = "",
+            Amount = 1000
+        });
+
+        var trip = await world.Trips.GetTripAsync(id);
+        Assert.NotNull(trip);
+        Assert.Equal("", trip!.ConsignorName);
+        Assert.Equal("", trip.ConsigneeName);
+    }
+
+    /// <summary>The way bill number is optional and, when given, is kept
+    /// verbatim for the LR to print — blank must persist as null rather than
+    /// an empty string, so "has a way bill number" is a single clean check.</summary>
+    [Theory]
+    [InlineData("WB-4471", "WB-4471")]
+    [InlineData("  WB-88  ", "WB-88")]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public async Task Way_bill_number_is_optional_and_trimmed(string? entered, string? expected)
+    {
+        await using var world = await TestWorld.CreateAsync();
+
+        var id = await world.Trips.SaveTripAsync(new Trip
+        {
+            Date = DateTime.Today,
+            VehicleId = world.VehicleId,
+            DriverId = world.DriverId,
+            PartyId = world.PartyId,
+            FromCityId = world.FromCityId,
+            ToCityId = world.ToCityId,
+            ConsignorName = "Consignor",
+            ConsigneeName = "Consignee",
+            WayBillNo = entered,
+            Amount = 1000
+        });
+
+        var trip = await world.Trips.GetTripAsync(id);
+        Assert.Equal(expected, trip!.WayBillNo);
     }
 }

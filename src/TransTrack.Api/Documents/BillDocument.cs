@@ -49,10 +49,27 @@ public static class BillDocument
                     AddRow(table, "Balance Due", $"{trip.BalanceReceivable:N2}", bold: true);
                 });
 
-                col.Item().PaddingTop(6).PaddingBottom(40)
+                col.Item().PaddingTop(6)
                     .Text($"Rupees in words: {NumberToWords.ToRupees(trip.Amount)}").FontSize(8.5f);
 
-                col.Item().Row(row =>
+                // Opt-in per company, and only when actually filled in — see
+                // Company.CanPrintBankDetails. A company that hasn't asked for
+                // this never has its account number appear on a document.
+                if (company.CanPrintBankDetails)
+                {
+                    col.Item().PaddingTop(8).Border(0.5f).BorderColor(PdfHelpers.Line).Padding(5).Column(bank =>
+                    {
+                        bank.Item().Text("BANK DETAILS").FontSize(7.5f).SemiBold().FontColor(PdfHelpers.Muted);
+
+                        if (!string.IsNullOrWhiteSpace(company.BankAccountNo))
+                            bank.Item().PaddingTop(1).Element(c => PdfHelpers.LabelValue(c, "A/C No.", company.BankAccountNo, 8.5f));
+
+                        if (!string.IsNullOrWhiteSpace(company.Ifsc))
+                            bank.Item().Element(c => PdfHelpers.LabelValue(c, "IFSC", company.Ifsc, 8.5f));
+                    });
+                }
+
+                col.Item().PaddingTop(40).Row(row =>
                 {
                     row.RelativeItem().Text("Customer's sign: ____________________").FontSize(8.5f);
                     row.RelativeItem().AlignRight().Text($"For {(string.IsNullOrWhiteSpace(company.CompanyName) ? "TransTrack" : company.CompanyName)}").FontSize(8.5f);

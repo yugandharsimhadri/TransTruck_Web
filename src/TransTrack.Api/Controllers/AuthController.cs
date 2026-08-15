@@ -15,9 +15,40 @@ namespace TransTrack.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/auth")]
-public class AuthController(AuthService auth, MasterDataService masters, JwtTokenService tokens, IWebHostEnvironment env) : ControllerBase
+public class AuthController(
+    AuthService auth,
+    MasterDataService masters,
+    JwtTokenService tokens,
+    RegistrationService registration,
+    IWebHostEnvironment env) : ControllerBase
 {
     public record LoginRequest(string Username, string Password);
+
+    public record RegisterRequest(string CompanyName, string Phone, string? Password);
+
+    public record RegisterResponse(string Username, string CompanyName, string Message);
+
+    /// <summary>Self-service sign-up from the login screen. Deliberately
+    /// returns no token: registration is not a sign-in, and the new account
+    /// has MustChangePassword set, so the owner goes through the normal login
+    /// → forced-password-change path exactly as an onboarded owner does.</summary>
+    [HttpPost("register")]
+    [AllowAnonymous]
+    public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
+    {
+        try
+        {
+            var result = await registration.RegisterAsync(request.CompanyName, request.Phone, request.Password);
+            return Ok(new RegisterResponse(
+                result.Username,
+                result.CompanyName,
+                "Registered. Sign in with your phone number — you'll be asked to set a new password."));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
 
     public record LoginResponse(
         string Status, string? Token, string? Message,

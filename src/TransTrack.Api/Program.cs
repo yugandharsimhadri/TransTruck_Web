@@ -49,6 +49,7 @@ builder.Services.AddSingleton<AuditService>();
 // EnterpriseAdmin's cross-company surface — onboarding, password reset,
 // license renewal. Deliberately not one of the tenant-scoped services above.
 builder.Services.AddSingleton<EnterpriseAdminService>();
+builder.Services.AddSingleton<RegistrationService>();
 
 // ── Request-scoped current user, in place of the desktop's DI-singleton
 // CurrentUserService (there's exactly one signed-in user per WPF process;

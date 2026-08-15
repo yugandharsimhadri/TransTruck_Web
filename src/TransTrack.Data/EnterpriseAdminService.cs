@@ -68,30 +68,11 @@ public class EnterpriseAdminService(IDbContextFactory<AppDbContext> factory)
         db.Companies.Add(company);
 
         // The same starter set DbBootstrapper used to seed once globally —
-        // now seeded per company, at onboarding, instead.
-        string[] expenseCategoryNames = ["Fuel", "Toll", "Loading", "Unloading", "Repair", "Other"];
-        db.ExpenseCategories.AddRange(expenseCategoryNames.Select(n => new ExpenseCategory { Name = n, CompanyId = company.Id }));
+        // now seeded per company, at onboarding, instead. Shared with
+        // self-registration so both routes produce an identical company.
+        CompanyProvisioning.SeedStarterMasters(db, company.Id);
 
-        string[] maintenanceCategoryNames = ["Service", "Tyres", "Insurance", "Repair", "Spare Parts", "Other"];
-        db.MaintenanceCategories.AddRange(maintenanceCategoryNames.Select(n => new MaintenanceCategory { Name = n, CompanyId = company.Id }));
-
-        var telangana = new State { Name = "Telangana", CompanyId = company.Id };
-        var andhraPradesh = new State { Name = "Andhra Pradesh", CompanyId = company.Id };
-        var karnataka = new State { Name = "Karnataka", CompanyId = company.Id };
-        var maharashtra = new State { Name = "Maharashtra", CompanyId = company.Id };
-        db.States.AddRange(telangana, andhraPradesh, karnataka, maharashtra);
-
-        db.Cities.AddRange(
-            new City { Name = "Hyderabad", State = telangana, CompanyId = company.Id },
-            new City { Name = "Sangareddy", State = telangana, CompanyId = company.Id },
-            new City { Name = "Warangal", State = telangana, CompanyId = company.Id },
-            new City { Name = "Vijayawada", State = andhraPradesh, CompanyId = company.Id },
-            new City { Name = "Visakhapatnam", State = andhraPradesh, CompanyId = company.Id },
-            new City { Name = "Bengaluru", State = karnataka, CompanyId = company.Id },
-            new City { Name = "Mumbai", State = maharashtra, CompanyId = company.Id },
-            new City { Name = "Pune", State = maharashtra, CompanyId = company.Id });
-
-        var username = await GenerateUniqueUsernameFromPhoneAsync(db, ownerPhone);
+        var username = await CompanyProvisioning.GenerateUniqueUsernameFromPhoneAsync(db, ownerPhone);
         var (hash, salt) = PasswordHasher.Hash(DefaultPassword);
 
         var owner = new User
@@ -215,31 +196,5 @@ public class EnterpriseAdminService(IDbContextFactory<AppDbContext> factory)
         return normalized;
     }
 
-    /// <summary>Indian mobile numbers only need the ten digits kept — an
-    /// optional +91/leading 0 and any spacing are noise once the number is a
-    /// username rather than something dialed.</summary>
-    private static string NormalizePhone(string phone)
-    {
-        var digits = new string(phone.Where(char.IsDigit).ToArray());
-        return digits.Length > 10 ? digits[^10..] : digits;
-    }
-
-    private static async Task<string> GenerateUniqueUsernameFromPhoneAsync(AppDbContext db, string ownerPhone)
-    {
-        var normalized = NormalizePhone(ownerPhone);
-        if (string.IsNullOrEmpty(normalized)) normalized = "owner";
-
-        var candidate = normalized;
-        var suffix = 1;
-        while (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == candidate))
-        {
-            suffix++;
-            // Only reached if two different owners share a phone number
-            // (e.g. one person running more than one company) — rare, but
-            // usernames are unique system-wide so it still needs a fallback.
-            candidate = $"{normalized}-{suffix}";
-        }
-
-        return candidate;
-    }
+    private static string NormalizePhone(string phone) => CompanyProvisioning.NormalizePhone(phone);
 }

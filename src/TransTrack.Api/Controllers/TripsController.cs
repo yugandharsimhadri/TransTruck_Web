@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using TransTrack.Api.Auth;
 using TransTrack.Api.Documents;
 using TransTrack.Core;
 using TransTrack.Data;
@@ -37,7 +38,13 @@ public class TripsController(TripService trips, MasterDataService masters, ICurr
         }
     }
 
+    /// <summary>Cancelling a trip. Owner-only, deliberately: a trip carries
+    /// its own numbering, expenses and approved amounts, so withdrawing one
+    /// is the most destructive act on the record and that authority sits with
+    /// the Owner alone — the same rule already applied to deleting an
+    /// approved amount.</summary>
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = Policies.Owner)]
     public async Task<IActionResult> Delete(Guid id)
     {
         await trips.DeleteTripAsync(id);

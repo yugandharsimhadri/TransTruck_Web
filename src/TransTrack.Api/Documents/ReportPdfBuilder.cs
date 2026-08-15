@@ -127,6 +127,116 @@ public static class ReportPdfBuilder
             page.Footer().AlignCenter().Text(t => t.CurrentPageNumber().FontSize(8));
         })).GeneratePdf();
 
+    /// <summary>The party's statement for a period, laid out to match the
+    /// paper report this replaces: a single centred title carrying the party
+    /// name and period, then S No / Date / Vehicle / From / To / Weight /
+    /// Rate / Amount, closing on one total. Portrait, not landscape — eight
+    /// narrow columns fit a page the customer can file alongside the old
+    /// ones.</summary>
+    public static byte[] BuildPartyReport(PartyReport report, Company company) =>
+        Document.Create(container => container.Page(page =>
+        {
+            page.Size(PageSizes.A4);
+            page.Margin(24);
+            page.DefaultTextStyle(x => x.FontSize(9));
+
+            page.Header().Column(col =>
+            {
+                col.Item().Element(c => Header(c, company, "Party-wise report", report.PeriodLabel));
+                col.Item().PaddingTop(6).AlignCenter()
+                    .Text($"{report.PartyName.ToUpperInvariant()} {report.PeriodLabel}")
+                    .FontSize(12).Bold();
+            });
+
+            page.Content().PaddingTop(8).Table(table =>
+            {
+                table.ColumnsDefinition(c =>
+                {
+                    c.RelativeColumn(0.7f); c.RelativeColumn(1.4f); c.RelativeColumn(1.8f);
+                    c.RelativeColumn(1.8f); c.RelativeColumn(1.8f);
+                    c.RelativeColumn(1.2f); c.RelativeColumn(1f); c.RelativeColumn(1.4f);
+                });
+
+                table.Header(h =>
+                {
+                    foreach (var text in new[] { "S NO", "DATE", "VEHICLE NO", "FROM", "TO", "WEIGHT", "RATE", "AMOUNT" })
+                        h.Cell().BorderBottom(1).PaddingBottom(4).Text(text).SemiBold().FontSize(8.5f);
+                });
+
+                foreach (var r in report.Rows)
+                {
+                    table.Cell().PaddingVertical(2).Text($"{r.SerialNo}").FontSize(8.5f);
+                    table.Cell().PaddingVertical(2).Text(r.Date.ToString("dd/MM/yyyy")).FontSize(8.5f);
+                    table.Cell().PaddingVertical(2).Text(r.VehicleRegNo).FontSize(8.5f);
+                    table.Cell().PaddingVertical(2).Text(r.FromCity).FontSize(8.5f);
+                    table.Cell().PaddingVertical(2).Text(r.ToCity).FontSize(8.5f);
+                    // Blank, not a dash, when a trip was billed as a flat
+                    // amount — matching how these read on the paper report.
+                    table.Cell().PaddingVertical(2).AlignRight().Text(r.Weight is { } w ? $"{w:N2}" : "").FontSize(8.5f);
+                    table.Cell().PaddingVertical(2).AlignRight().Text(r.Rate is { } rate ? $"{rate:N0}" : "").FontSize(8.5f);
+                    table.Cell().PaddingVertical(2).AlignRight().Text($"{r.Amount:N2}").FontSize(8.5f);
+                }
+
+                table.Cell().ColumnSpan(6).BorderTop(1).PaddingTop(4);
+                table.Cell().BorderTop(1).PaddingTop(4).Text("TOTAL").Bold().FontSize(9);
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{report.Total:N2}").Bold().FontSize(9);
+            });
+
+            page.Footer().AlignCenter().Text(t => t.CurrentPageNumber().FontSize(8));
+        })).GeneratePdf();
+
+    /// <summary>What each vehicle earned, spent and kept, month by month.
+    /// Saving is revenue less both trip expenses and maintenance, so a
+    /// vehicle that ran profitably but needed an expensive repair shows the
+    /// month it actually had.</summary>
+    public static byte[] BuildVehicleSavings(IReadOnlyList<VehicleMonthlySaving> rows, Company company, string filterSummary) =>
+        Document.Create(container => container.Page(page =>
+        {
+            page.Size(PageSizes.A4.Landscape());
+            page.Margin(24);
+            page.DefaultTextStyle(x => x.FontSize(9));
+
+            page.Header().Element(c => Header(c, company, "Vehicle savings report", filterSummary));
+
+            page.Content().PaddingTop(10).Table(table =>
+            {
+                table.ColumnsDefinition(c =>
+                {
+                    c.RelativeColumn(1.4f); c.RelativeColumn(1.2f); c.RelativeColumn(0.8f);
+                    c.RelativeColumn(1.3f); c.RelativeColumn(1.3f); c.RelativeColumn(1.3f);
+                    c.RelativeColumn(1.3f); c.RelativeColumn(1.3f);
+                });
+
+                table.Header(h =>
+                {
+                    foreach (var text in new[] { "Vehicle", "Month", "Trips", "Revenue", "Trip expenses", "Maintenance", "Saving", "Saving / trip" })
+                        h.Cell().BorderBottom(1).PaddingBottom(4).Text(text).SemiBold();
+                });
+
+                foreach (var r in rows)
+                {
+                    table.Cell().Text(r.VehicleRegNo);
+                    table.Cell().Text(r.MonthLabel);
+                    table.Cell().AlignRight().Text($"{r.Trips}");
+                    table.Cell().AlignRight().Text($"{r.Revenue:N2}");
+                    table.Cell().AlignRight().Text($"{r.TripExpenses:N2}");
+                    table.Cell().AlignRight().Text($"{r.MaintenanceCost:N2}");
+                    table.Cell().AlignRight().Text($"{r.Saving:N2}").SemiBold();
+                    table.Cell().AlignRight().Text($"{r.SavingPerTrip:N2}");
+                }
+
+                table.Cell().ColumnSpan(2).BorderTop(1).PaddingTop(4).Text("Total").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{rows.Sum(r => r.Trips)}").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{rows.Sum(r => r.Revenue):N2}").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{rows.Sum(r => r.TripExpenses):N2}").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{rows.Sum(r => r.MaintenanceCost):N2}").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{rows.Sum(r => r.Saving):N2}").Bold();
+                table.Cell().BorderTop(1);
+            });
+
+            page.Footer().AlignCenter().Text(t => t.CurrentPageNumber().FontSize(8));
+        })).GeneratePdf();
+
     /// <summary>Both directions of cash flow — trip expenses and amounts
     /// received — in one dated list. Other-owner vehicle rows print with a
     /// note rather than being silently dropped, but the totals only ever

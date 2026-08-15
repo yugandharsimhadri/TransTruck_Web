@@ -8,9 +8,10 @@ namespace TransTrack.Api.Documents;
 /// FlowDocument-based LrDocument, same layout (Consignor/Consignee, vehicle,
 /// route, freight breakdown, balance to pay, terms, signature). Prints as
 /// three copies — Vehicle, Consignee, Owner — one per page of the same PDF,
-/// mirroring the carbon-copy book handed out per trip. No logo: the LR is
-/// printed on the company's pre-printed stationery, which already carries
-/// the letterhead on paper.</summary>
+/// mirroring the carbon-copy book handed out per trip. Carries the company
+/// logo: this now prints on plain paper rather than the pre-printed
+/// stationery it was originally designed against, so the letterhead has to
+/// come from the document itself.</summary>
 public static class LrDocument
 {
     private static readonly string[] CopyLabels = ["Vehicle Copy", "Consignee Copy", "Owner Copy"];
@@ -31,7 +32,7 @@ public static class LrDocument
         page.Content().Column(col =>
         {
             col.Item().Element(c => PdfHelpers.CompanyHeader(c, company,
-                isReprint ? "LORRY RECEIPT (DUPLICATE)" : "LORRY RECEIPT", includeLogo: false, copyLabel: copyLabel));
+                isReprint ? "LORRY RECEIPT (DUPLICATE)" : "LORRY RECEIPT", includeLogo: true, copyLabel: copyLabel));
 
             if (!string.IsNullOrWhiteSpace(company.JurisdictionNote))
                 col.Item().PaddingTop(4).AlignCenter().Text(company.JurisdictionNote).FontSize(7.5f).FontColor(PdfHelpers.Muted);
@@ -39,6 +40,12 @@ public static class LrDocument
             col.Item().PaddingTop(6).Row(row =>
             {
                 row.RelativeItem().Element(c => PdfHelpers.LabelValue(c, "LR No.", string.IsNullOrWhiteSpace(trip.LrNo) ? "—" : trip.LrNo));
+
+                // Only when one was actually entered — an absent way bill
+                // number prints nothing at all rather than an empty label.
+                if (!string.IsNullOrWhiteSpace(trip.WayBillNo))
+                    row.RelativeItem().Element(c => PdfHelpers.LabelValue(c, "Way Bill No.", trip.WayBillNo));
+
                 row.RelativeItem().Element(c => PdfHelpers.LabelValue(c, "Date", trip.Date.ToString("dd-MMM-yyyy")));
             });
 

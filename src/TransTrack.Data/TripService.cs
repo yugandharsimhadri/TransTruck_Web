@@ -81,8 +81,10 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         if (trip.DriverId == Guid.Empty) throw new InvalidOperationException("Choose a driver.");
         if (trip.PartyId == Guid.Empty) throw new InvalidOperationException("Choose a party.");
         if (trip.FromCityId == Guid.Empty || trip.ToCityId == Guid.Empty) throw new InvalidOperationException("Choose the from and to cities.");
-        if (string.IsNullOrWhiteSpace(trip.ConsignorName)) throw new InvalidOperationException("Consignor name is required.");
-        if (string.IsNullOrWhiteSpace(trip.ConsigneeName)) throw new InvalidOperationException("Consignee name is required.");
+
+        // Consignor and consignee are deliberately not required: plenty of
+        // trips are booked against the billing party alone, with no separate
+        // consignor/consignee to name. Blank simply prints as "—" on the LR.
 
         // Booking allocates a trip number, so it goes through the retrying
         // allocator: two people booking at the same instant must get TRP00007
@@ -108,10 +110,11 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         entity.FromAddress = trip.FromAddress;
         entity.ToCityId = trip.ToCityId;
         entity.ToAddress = trip.ToAddress;
-        entity.ConsignorName = trip.ConsignorName.Trim();
+        entity.ConsignorName = (trip.ConsignorName ?? string.Empty).Trim();
         entity.ConsignorAddress = trip.ConsignorAddress;
-        entity.ConsigneeName = trip.ConsigneeName.Trim();
+        entity.ConsigneeName = (trip.ConsigneeName ?? string.Empty).Trim();
         entity.ConsigneeAddress = trip.ConsigneeAddress;
+        entity.WayBillNo = string.IsNullOrWhiteSpace(trip.WayBillNo) ? null : trip.WayBillNo.Trim();
         entity.Weight = trip.Weight;
         entity.Rate = trip.Rate;
         entity.Amount = trip.Amount;
