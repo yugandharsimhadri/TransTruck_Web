@@ -13,7 +13,12 @@ import { TruckMark } from "@/components/truck-mark";
 import { TruckDrive } from "@/components/truck-drive";
 import { ThemeToggle } from "@/components/theme-toggle";
 
-type Stage = "credentials" | "changePassword";
+type Stage = "credentials" | "changePassword" | "register";
+
+/// Pre-filled on the registration form and accepted if left as-is — the new
+/// account is forced through a password change on its first sign-in either
+/// way, so this is a starting point rather than a lasting password.
+const DEFAULT_PASSWORD = "Welcome@123";
 
 export default function LoginPage() {
   const [stage, setStage] = useState<Stage>("credentials");
@@ -23,7 +28,13 @@ export default function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [displayName, setDisplayName] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+
+  // Registration form
+  const [regCompanyName, setRegCompanyName] = useState("");
+  const [regPhone, setRegPhone] = useState("");
+  const [regPassword, setRegPassword] = useState(DEFAULT_PASSWORD);
 
   const router = useRouter();
   const { refresh } = useAuth();
@@ -50,6 +61,47 @@ export default function LoginPage() {
         await refresh();
         router.push("/dashboard");
       }
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitRegistration(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!regCompanyName.trim()) {
+      setError("Enter your company name.");
+      return;
+    }
+    if (regPhone.replace(/\D/g, "").length !== 10) {
+      setError("Enter a 10-digit mobile number.");
+      return;
+    }
+    if (regPassword.length < 8) {
+      setError("The password must be at least 8 characters.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const result = await api.post<{ username: string; companyName: string; message: string }>(
+        "/api/auth/register",
+        { companyName: regCompanyName, phone: regPhone, password: regPassword },
+      );
+
+      // Registration is not a sign-in: hand them back to the login form with
+      // the number already filled in, since the account still has to go
+      // through its forced password change.
+      setUsername(result.username);
+      setPassword("");
+      setRegCompanyName("");
+      setRegPhone("");
+      setRegPassword(DEFAULT_PASSWORD);
+      setNotice(result.message);
+      setStage("credentials");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Something went wrong. Try again.");
     } finally {
@@ -130,10 +182,85 @@ export default function LoginPage() {
                   className="h-12 text-base"
                 />
               </div>
+              {notice && <p className="text-sm font-medium text-success">{notice}</p>}
               {error && <p className="text-sm font-medium text-destructive">{error}</p>}
               <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={busy}>
                 {busy ? "Signing in…" : "Sign in"}
               </Button>
+              <div className="text-center text-sm text-muted-foreground">
+                New to TransTruck?{" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={() => {
+                    setError("");
+                    setNotice("");
+                    setStage("register");
+                  }}
+                >
+                  Register your company
+                </button>
+              </div>
+            </form>
+          )}
+
+          {stage === "register" && (
+            <form onSubmit={submitRegistration} className="space-y-5">
+              <p className="text-sm text-muted-foreground">
+                Create your company. Your phone number becomes your login.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="regCompanyName" className="text-base">Company name</Label>
+                <Input
+                  id="regCompanyName"
+                  autoFocus
+                  value={regCompanyName}
+                  onChange={(e) => setRegCompanyName(e.target.value)}
+                  className="h-12 text-base"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="regPhone" className="text-base">Phone number</Label>
+                <Input
+                  id="regPhone"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="9876543210"
+                  value={regPhone}
+                  onChange={(e) => setRegPhone(e.target.value)}
+                  className="h-12 text-base"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="regPassword" className="text-base">Password</Label>
+                <Input
+                  id="regPassword"
+                  value={regPassword}
+                  onChange={(e) => setRegPassword(e.target.value)}
+                  autoComplete="new-password"
+                  className="h-12 text-base"
+                />
+                <p className="text-xs text-muted-foreground">
+                  You&apos;ll be asked to set your own password the first time you sign in.
+                </p>
+              </div>
+              {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+              <Button type="submit" size="lg" className="h-12 w-full text-base" disabled={busy}>
+                {busy ? "Registering…" : "Register"}
+              </Button>
+              <div className="text-center text-sm text-muted-foreground">
+                Already registered?{" "}
+                <button
+                  type="button"
+                  className="font-medium text-primary underline-offset-4 hover:underline"
+                  onClick={() => {
+                    setError("");
+                    setStage("credentials");
+                  }}
+                >
+                  Sign in
+                </button>
+              </div>
             </form>
           )}
 

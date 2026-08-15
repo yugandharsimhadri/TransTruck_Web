@@ -260,6 +260,9 @@ public class MasterDataService(IDbContextFactory<AppDbContext> factory, ICurrent
         entity.Pan = settings.Pan;
         entity.Gstin = settings.Gstin;
         entity.JurisdictionNote = settings.JurisdictionNote;
+        entity.BankAccountNo = string.IsNullOrWhiteSpace(settings.BankAccountNo) ? null : settings.BankAccountNo.Trim();
+        entity.Ifsc = string.IsNullOrWhiteSpace(settings.Ifsc) ? null : settings.Ifsc.Trim().ToUpperInvariant();
+        entity.ShowBankDetailsOnBill = settings.ShowBankDetailsOnBill;
         entity.LogoBase64 = settings.LogoBase64;
         entity.LogoFileName = settings.LogoFileName;
         await db.SaveChangesAsync();

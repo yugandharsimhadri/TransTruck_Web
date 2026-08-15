@@ -126,6 +126,7 @@ export interface Trip {
   commissionAmount?: number | null;
   remarks?: string | null;
   lrNo?: string | null;
+  wayBillNo?: string | null;
   billNo?: string | null;
   status: TripStatus;
   closedOn?: string | null;
@@ -171,6 +172,13 @@ export interface Company {
   jurisdictionNote?: string | null;
   logoBase64?: string | null;
   logoFileName?: string | null;
+  bankAccountNo?: string | null;
+  ifsc?: string | null;
+  showBankDetailsOnBill?: boolean;
+  // Written by the API on every row; the settings form uses them to tell a
+  // freshly-fetched company apart from the copy it already hydrated from.
+  createdAt?: string;
+  updatedAt?: string | null;
 }
 
 export interface DashboardSummary {
@@ -331,4 +339,33 @@ export interface LedgerRow {
   detail: string;
   amount: number;
   countsInCompanyAccounts: boolean;
+}
+
+export interface PartyTripRow {
+  serialNo: number;
+  date: string;
+  vehicleRegNo: string;
+  fromCity: string;
+  toCity: string;
+  weight?: number | null;
+  rate?: number | null;
+  amount: number;
+}
+
+export interface PartyReport {
+  partyName: string;
+  periodLabel: string;
+  rows: PartyTripRow[];
+  total: number;
+}
+
+export interface VehicleMonthlySaving {
+  vehicleRegNo: string;
+  monthLabel: string;
+  trips: number;
+  revenue: number;
+  tripExpenses: number;
+  maintenanceCost: number;
+  saving: number;
+  savingPerTrip: number;
 }

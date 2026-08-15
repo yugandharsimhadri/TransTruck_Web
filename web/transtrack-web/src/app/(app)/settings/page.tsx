@@ -49,6 +49,7 @@ function SettingsScreen() {
 }
 
 function CompanyTab() {
+  const queryClient = useQueryClient();
   const companyQuery = useQuery({
     queryKey: ["masters", "company-settings"],
     queryFn: () => api.get<Company>("/api/masters/company-settings"),
@@ -62,27 +63,42 @@ function CompanyTab() {
   const [pan, setPan] = useState("");
   const [gstin, setGstin] = useState("");
   const [jurisdictionNote, setJurisdictionNote] = useState("");
+  const [bankAccountNo, setBankAccountNo] = useState("");
+  const [ifsc, setIfsc] = useState("");
+  const [showBankDetailsOnBill, setShowBankDetailsOnBill] = useState(false);
   const [logoBase64, setLogoBase64] = useState<string | null>(null);
   const [logoFileName, setLogoFileName] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [hydrated, setHydrated] = useState(false);
+
+  // Keyed on the row actually fetched rather than a one-shot "have I
+  // hydrated yet" flag. That flag meant a remount rehydrated the form from
+  // whatever was in the query cache — including a stale copy from before the
+  // last save — and then never corrected itself when the real data arrived,
+  // which is what made saved details look like they vanished and came back.
+  const [hydratedFrom, setHydratedFrom] = useState<string | null>(null);
 
   useEffect(() => {
-    if (companyQuery.data && !hydrated) {
-      const c = companyQuery.data;
-      setCompanyName(c.companyName);
-      setTagline(c.tagline ?? "");
-      setAddressLine(c.addressLine ?? "");
-      setPhone(c.phone ?? "");
-      setCell(c.cell ?? "");
-      setPan(c.pan ?? "");
-      setGstin(c.gstin ?? "");
-      setJurisdictionNote(c.jurisdictionNote ?? "");
-      setLogoBase64(c.logoBase64 ?? null);
-      setLogoFileName(c.logoFileName ?? null);
-      setHydrated(true);
-    }
-  }, [companyQuery.data, hydrated]);
+    const c = companyQuery.data;
+    if (!c) return;
+
+    const stamp = `${c.id}:${c.updatedAt ?? c.createdAt ?? ""}`;
+    if (stamp === hydratedFrom) return;
+
+    setCompanyName(c.companyName);
+    setTagline(c.tagline ?? "");
+    setAddressLine(c.addressLine ?? "");
+    setPhone(c.phone ?? "");
+    setCell(c.cell ?? "");
+    setPan(c.pan ?? "");
+    setGstin(c.gstin ?? "");
+    setJurisdictionNote(c.jurisdictionNote ?? "");
+    setBankAccountNo(c.bankAccountNo ?? "");
+    setIfsc(c.ifsc ?? "");
+    setShowBankDetailsOnBill(c.showBankDetailsOnBill ?? false);
+    setLogoBase64(c.logoBase64 ?? null);
+    setLogoFileName(c.logoFileName ?? null);
+    setHydratedFrom(stamp);
+  }, [companyQuery.data, hydratedFrom]);
 
   const mutation = useMutation({
     mutationFn: () =>
@@ -96,10 +112,18 @@ function CompanyTab() {
         pan: pan || null,
         gstin: gstin || null,
         jurisdictionNote: jurisdictionNote || null,
+        bankAccountNo: bankAccountNo || null,
+        ifsc: ifsc || null,
+        showBankDetailsOnBill,
         logoBase64,
         logoFileName,
       }),
-    onSuccess: () => toast.success("Company details saved."),
+    onSuccess: () => {
+      toast.success("Company details saved.");
+      // Without this the cache keeps serving the pre-save copy to anything
+      // that reads company settings next — including this form on remount.
+      queryClient.invalidateQueries({ queryKey: ["masters", "company-settings"] });
+    },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong."),
   });
 
@@ -178,6 +202,41 @@ function CompanyTab() {
       <div className="space-y-2">
         <Label className="text-base">Jurisdiction note (printed on documents)</Label>
         <Textarea value={jurisdictionNote} onChange={(e) => setJurisdictionNote(e.target.value)} />
+      </div>
+
+      <div className="space-y-3 rounded-2xl border p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <Label htmlFor="showBank" className="text-base">Print bank details on the Bill</Label>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Off by default. Nothing is printed unless this is on and the fields below are filled in.
+            </p>
+          </div>
+          <input
+            id="showBank"
+            type="checkbox"
+            checked={showBankDetailsOnBill}
+            onChange={(e) => setShowBankDetailsOnBill(e.target.checked)}
+            className="h-5 w-5 shrink-0"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-base">Bank account number</Label>
+          <Input
+            value={bankAccountNo}
+            onChange={(e) => setBankAccountNo(e.target.value)}
+            className="h-12 text-base"
+            inputMode="numeric"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label className="text-base">IFSC code</Label>
+          <Input
+            value={ifsc}
+            onChange={(e) => setIfsc(e.target.value.toUpperCase())}
+            className="h-12 text-base"
+          />
+        </div>
       </div>
 
       {error && <p className="text-sm font-medium text-destructive">{error}</p>}

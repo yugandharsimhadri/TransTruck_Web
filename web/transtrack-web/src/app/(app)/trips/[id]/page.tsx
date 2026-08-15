@@ -26,6 +26,7 @@ import { ArrowLeft, Trash2, Lock, LockOpen, Share2, FileText, Receipt, Wallet, P
 import { shareFile, shareText } from "@/lib/share";
 import { iconForCategory } from "@/lib/expense-icons";
 import { TripAuditTrail } from "@/components/audit-trail";
+import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 
 const empty = "00000000-0000-0000-0000-000000000000";
@@ -34,7 +35,12 @@ export default function TripDetailPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const isNew = params.id === "new";
+
+  // Cancelling a trip and removing an approved amount are both Owner-only,
+  // enforced by the API as well — this only decides whether to draw them.
+  const isOwner = user?.role === "Owner";
 
   const tripQuery = useQuery({
     queryKey: ["trips", params.id],
@@ -58,6 +64,7 @@ export default function TripDetailPage() {
   const [toCityId, setToCityId] = useState("");
   const [consignorName, setConsignorName] = useState("");
   const [consigneeName, setConsigneeName] = useState("");
+  const [wayBillNo, setWayBillNo] = useState("");
   const [weight, setWeight] = useState("");
   const [rate, setRate] = useState("");
   const [amount, setAmount] = useState("0");
@@ -66,6 +73,7 @@ export default function TripDetailPage() {
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
   const [hydrated, setHydrated] = useState(isNew);
+  const [cancelConfirming, setCancelConfirming] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(isNew);
   // Collapsed by default: valuable when you need it, noise when you don't.
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -80,6 +88,7 @@ export default function TripDetailPage() {
       setToCityId(trip.toCityId);
       setConsignorName(trip.consignorName);
       setConsigneeName(trip.consigneeName);
+      setWayBillNo(trip.wayBillNo ?? "");
       setWeight(trip.weight?.toString() ?? "");
       setRate(trip.rate?.toString() ?? "");
       setAmount(trip.amount.toString());
@@ -109,6 +118,7 @@ export default function TripDetailPage() {
         toCityId,
         consignorName,
         consigneeName,
+        wayBillNo: wayBillNo || null,
         weight: weight ? Number(weight) : null,
         rate: rate ? Number(rate) : null,
         amount: Number(amount) || 0,
@@ -142,6 +152,16 @@ export default function TripDetailPage() {
       queryClient.invalidateQueries({ queryKey: ["trips", params.id] });
       queryClient.invalidateQueries({ queryKey: ["trips"] });
     },
+  });
+
+  const cancelTripMutation = useMutation({
+    mutationFn: () => api.delete(`/api/trips/${trip!.id}`),
+    onSuccess: () => {
+      toast.success("Trip cancelled.");
+      queryClient.invalidateQueries({ queryKey: ["trips"] });
+      router.push("/trips");
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Could not cancel the trip."),
   });
 
   return (
@@ -322,13 +342,22 @@ export default function TripDetailPage() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label>Consignor</Label>
+              <Label>Consignor (optional)</Label>
               <Input value={consignorName} onChange={(e) => setConsignorName(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>Consignee</Label>
+              <Label>Consignee (optional)</Label>
               <Input value={consigneeName} onChange={(e) => setConsigneeName(e.target.value)} />
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Way bill no. (optional)</Label>
+            <Input
+              value={wayBillNo}
+              onChange={(e) => setWayBillNo(e.target.value)}
+              placeholder="Printed on the LR when entered"
+            />
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -432,19 +461,7 @@ export default function TripDetailPage() {
             </CardHeader>
             <CardContent className="space-y-2">
               {trip.transactions.map((t) => (
-                <div key={t.id} className="flex items-center justify-between rounded-lg border p-3 text-sm">
-                  <div>
-                    <p className="font-medium">{formatCurrency(t.amount)} · {t.paymentMode}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(t.date)}</p>
-                  </div>
-                  <Badge
-                    variant={
-                      t.approvalStatus === "Approved" ? "success" : t.approvalStatus === "Rejected" ? "destructive" : "warning"
-                    }
-                  >
-                    {t.approvalStatus}
-                  </Badge>
-                </div>
+                <AmountRow key={t.id} tripId={trip.id} transaction={t} isOwner={isOwner} />
               ))}
               {trip.transactions.length === 0 && (
                 <p className="text-sm text-muted-foreground">
@@ -489,6 +506,46 @@ export default function TripDetailPage() {
             </Button>
           )}
 
+          {/* Owner-only, and confirmed before it acts: cancelling withdraws
+              the whole trip along with its expenses and amounts. The API
+              refuses this for anyone else regardless of what's drawn here. */}
+          {isOwner && (
+            <div className="rounded-2xl border border-destructive/30 p-3">
+              {cancelConfirming ? (
+                <div className="space-y-3">
+                  <p className="text-sm">
+                    Cancel trip {trip.tripNo}? Its expenses and amounts go with it. The record is kept for
+                    the audit trail, but it leaves your trips list.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setCancelConfirming(false)}
+                    >
+                      Keep trip
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      className="flex-1"
+                      disabled={cancelTripMutation.isPending}
+                      onClick={() => cancelTripMutation.mutate()}
+                    >
+                      {cancelTripMutation.isPending ? "Cancelling…" : "Cancel trip"}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  className="w-full text-destructive"
+                  onClick={() => setCancelConfirming(true)}
+                >
+                  <Trash2 className="h-4 w-4" /> Cancel trip
+                </Button>
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
@@ -534,6 +591,84 @@ function DocumentButton({
     <Button variant="outline" className="h-14" disabled={busy} onClick={openAndShare}>
       <Icon className="h-4 w-4" /> {busy ? "Preparing…" : `${label} — view / share`}
     </Button>
+  );
+}
+
+/// An amount received. An approved one can never be edited, so deleting it is
+/// the only correction available — and that authority is the Owner's alone,
+/// which the API enforces too (DELETE /api/transactions/{id} is Owner-gated).
+function AmountRow({ tripId, transaction, isOwner }: {
+  tripId: string;
+  transaction: Trip["transactions"][number];
+  isOwner: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const [confirming, setConfirming] = useState(false);
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/api/transactions/${transaction.id}`),
+    onSuccess: () => {
+      toast.success("Amount removed.");
+      queryClient.invalidateQueries({ queryKey: ["trips", tripId] });
+      queryClient.invalidateQueries({ queryKey: ["trips"] });
+      queryClient.invalidateQueries({ queryKey: ["audit", "trip", tripId] });
+    },
+    onError: (err) => toast.error(err instanceof ApiError ? err.message : "Couldn't remove that amount."),
+  });
+
+  return (
+    <div className="rounded-lg border p-3 text-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="font-medium">{formatCurrency(transaction.amount)} · {transaction.paymentMode}</p>
+          <p className="text-xs text-muted-foreground">{formatDate(transaction.date)}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Badge
+            variant={
+              transaction.approvalStatus === "Approved"
+                ? "success"
+                : transaction.approvalStatus === "Rejected"
+                  ? "destructive"
+                  : "warning"
+            }
+          >
+            {transaction.approvalStatus}
+          </Badge>
+          {isOwner && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setConfirming((c) => !c)}
+              disabled={deleteMutation.isPending}
+            >
+              <Trash2 className="h-4 w-4 text-destructive" />
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Deleting money off a trip changes its balance, so it asks first
+          rather than acting on a single mis-tap. */}
+      {confirming && (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-accent p-2">
+          <p className="text-xs">Remove this amount from the trip?</p>
+          <div className="flex gap-1">
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => deleteMutation.mutate()}
+            >
+              {deleteMutation.isPending ? "Removing…" : "Remove"}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

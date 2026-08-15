@@ -19,18 +19,30 @@ import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api";
 import { shareFile } from "@/lib/share";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { Vehicle, Driver, Trip, VehicleMaintenance, LedgerRow, VehicleOwnership } from "@/lib/types";
+import type {
+  Vehicle,
+  Driver,
+  Party,
+  Trip,
+  VehicleMaintenance,
+  LedgerRow,
+  PartyReport,
+  VehicleMonthlySaving,
+  VehicleOwnership,
+} from "@/lib/types";
 import { FileDown, FileSpreadsheet } from "lucide-react";
 
 export default function ReportsPage() {
   const [vehicleId, setVehicleId] = useState<string>("");
   const [driverId, setDriverId] = useState<string>("");
+  const [partyId, setPartyId] = useState<string>("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [ownership, setOwnership] = useState<VehicleOwnership | "">("");
 
   const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/api/vehicles") });
   const driversQuery = useQuery({ queryKey: ["drivers"], queryFn: () => api.get<Driver[]>("/api/drivers") });
+  const partiesQuery = useQuery({ queryKey: ["parties"], queryFn: () => api.get<Party[]>("/api/masters/parties") });
 
   const params = new URLSearchParams();
   if (vehicleId) params.set("vehicleId", vehicleId);
@@ -39,6 +51,20 @@ export default function ReportsPage() {
   if (to) params.set("to", to);
   if (ownership) params.set("ownership", ownership);
   const qs = params.toString();
+
+  // The party report takes its own filter set — a driver or ownership filter
+  // means nothing on a statement addressed to one party.
+  const partyParams = new URLSearchParams();
+  if (partyId) partyParams.set("partyId", partyId);
+  if (from) partyParams.set("from", from);
+  if (to) partyParams.set("to", to);
+  const partyQs = partyParams.toString();
+
+  const savingsParams = new URLSearchParams();
+  if (vehicleId) savingsParams.set("vehicleId", vehicleId);
+  if (from) savingsParams.set("from", from);
+  if (to) savingsParams.set("to", to);
+  const savingsQs = savingsParams.toString();
 
   return (
     <PageContainer className="space-y-4">
@@ -80,7 +106,20 @@ export default function ReportsPage() {
             <Label className="text-xs">To</Label>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
-          <div className="col-span-2 space-y-1.5 sm:col-span-4">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Party (party report)</Label>
+            <Select value={partyId} onValueChange={(v) => setPartyId(v ?? "")}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Choose">
+                  {(v: string) => partiesQuery.data?.find((x) => x.id === v)?.name ?? "Choose"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {partiesQuery.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="col-span-2 space-y-1.5 sm:col-span-3">
             <Label className="text-xs">Ownership</Label>
             <Select value={ownership} onValueChange={(v) => setOwnership((v as VehicleOwnership) ?? "")}>
               <SelectTrigger className="w-full sm:w-56">
@@ -96,16 +135,109 @@ export default function ReportsPage() {
       </Card>
 
       <Tabs defaultValue="trips">
-        <TabsList>
+        <TabsList className="flex-wrap">
           <TabsTrigger value="trips">Trips</TabsTrigger>
+          <TabsTrigger value="party">Party-wise</TabsTrigger>
+          <TabsTrigger value="savings">Vehicle savings</TabsTrigger>
           <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
           <TabsTrigger value="ledger">Transactions</TabsTrigger>
         </TabsList>
         <TabsContent value="trips"><TripsReport qs={qs} /></TabsContent>
+        <TabsContent value="party"><PartyWiseReport qs={partyQs} hasParty={partyId !== ""} /></TabsContent>
+        <TabsContent value="savings"><VehicleSavingsReport qs={savingsQs} /></TabsContent>
         <TabsContent value="maintenance"><MaintenanceReport qs={qs} /></TabsContent>
         <TabsContent value="ledger"><LedgerReport qs={qs} /></TabsContent>
       </Tabs>
     </PageContainer>
+  );
+}
+
+function PartyWiseReport({ qs, hasParty }: { qs: string; hasParty: boolean }) {
+  const query = useQuery({
+    queryKey: ["reports", "party", qs],
+    queryFn: () => api.get<PartyReport>(`/api/reports/party?${qs}`),
+    // Nothing to ask for until a party is chosen — this report is always
+    // about one party, there is no "all parties" version of it.
+    enabled: hasParty,
+  });
+
+  if (!hasParty) {
+    return (
+      <p className="pt-4 text-sm text-muted-foreground">
+        Choose a party above to build its statement.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3 pt-4">
+      {query.data && (
+        <div className="rounded-2xl border p-3">
+          <p className="font-semibold">{query.data.partyName}</p>
+          <p className="text-xs text-muted-foreground">{query.data.periodLabel}</p>
+        </div>
+      )}
+      <Totals label="Total billed" value={formatCurrency(query.data?.total ?? 0)} />
+      <ExportButtons type="party" qs={qs} />
+      <div className="space-y-2">
+        {query.data?.rows.map((r) => (
+          <Card key={r.serialNo}>
+            <CardContent className="flex items-start justify-between gap-3 p-3 text-sm">
+              <div className="min-w-0">
+                <p className="font-medium">{r.serialNo}. {r.vehicleRegNo} · {formatDate(r.date)}</p>
+                <p className="truncate text-muted-foreground">
+                  {r.fromCity} → {r.toCity}
+                  {r.weight != null ? ` · ${r.weight} MT` : ""}
+                  {r.rate != null ? ` @ ${r.rate}` : ""}
+                </p>
+              </div>
+              <p className="shrink-0 font-semibold">{formatCurrency(r.amount)}</p>
+            </CardContent>
+          </Card>
+        ))}
+        {query.data?.rows.length === 0 && (
+          <p className="text-sm text-muted-foreground">No trips for this party in the selected period.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VehicleSavingsReport({ qs }: { qs: string }) {
+  const query = useQuery({
+    queryKey: ["reports", "vehicle-savings", qs],
+    queryFn: () => api.get<VehicleMonthlySaving[]>(`/api/reports/vehicle-savings?${qs}`),
+  });
+
+  const totalSaving = query.data?.reduce((s, r) => s + r.saving, 0) ?? 0;
+
+  return (
+    <div className="space-y-3 pt-4">
+      <Totals label="Total saved" value={formatCurrency(totalSaving)} />
+      <ExportButtons type="vehicle-savings" qs={qs} />
+      <div className="space-y-2">
+        {query.data?.map((r) => (
+          <Card key={`${r.vehicleRegNo}-${r.monthLabel}`}>
+            <CardContent className="p-3 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <p className="font-medium">{r.vehicleRegNo} · {r.monthLabel}</p>
+                <p className={r.saving >= 0 ? "font-semibold text-success" : "font-semibold text-destructive"}>
+                  {formatCurrency(r.saving)}
+                </p>
+              </div>
+              <p className="text-muted-foreground">
+                {r.trips} trip{r.trips === 1 ? "" : "s"} · Revenue {formatCurrency(r.revenue)} · Expenses{" "}
+                {formatCurrency(r.tripExpenses)} · Maintenance {formatCurrency(r.maintenanceCost)}
+              </p>
+              <p className="text-muted-foreground">Saving per trip: {formatCurrency(r.savingPerTrip)}</p>
+            </CardContent>
+          </Card>
+        ))}
+        {query.data?.length === 0 && (
+          <p className="text-sm text-muted-foreground">No vehicle activity in the selected period.</p>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -209,7 +341,13 @@ function LedgerReport({ qs }: { qs: string }) {
   );
 }
 
-function ExportButtons({ type, qs }: { type: "trips" | "maintenance" | "ledger"; qs: string }) {
+function ExportButtons({
+  type,
+  qs,
+}: {
+  type: "trips" | "maintenance" | "ledger" | "party" | "vehicle-savings";
+  qs: string;
+}) {
   const [busy, setBusy] = useState<"pdf" | "xlsx" | null>(null);
 
   const download = async (kind: "pdf" | "xlsx") => {
