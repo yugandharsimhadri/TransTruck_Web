@@ -108,7 +108,7 @@ export default function TripDetailPage() {
   }, [trip, hydrated]);
 
   useEffect(() => {
-    if (weight && rate) setAmount(String(Number(weight) * Number(rate)));
+    if (weight && rate) setAmount(String(Math.round(Number(weight) * Number(rate))));
   }, [weight, rate]);
 
   const selectedVehicle = vehiclesQuery.data?.find((v) => v.id === vehicleId);
