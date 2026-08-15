@@ -112,6 +112,7 @@ function DriverDialog({
   const [name, setName] = useState(existing?.name ?? "");
   const [phone, setPhone] = useState(existing?.phone ?? "");
   const [salary, setSalary] = useState(existing?.salary?.toString() ?? "");
+  const [joiningDate, setJoiningDate] = useState(existing?.joiningDate?.slice(0, 10) ?? "");
   const [error, setError] = useState("");
 
   const [openFor, setOpenFor] = useState(driver);
@@ -120,6 +121,7 @@ function DriverDialog({
     setName(existing?.name ?? "");
     setPhone(existing?.phone ?? "");
     setSalary(existing?.salary?.toString() ?? "");
+    setJoiningDate(existing?.joiningDate?.slice(0, 10) ?? "");
     setError("");
   }
 
@@ -130,7 +132,7 @@ function DriverDialog({
         name,
         phone,
         salary: Number(salary) || 0,
-        joiningDate: existing?.joiningDate ?? new Date().toISOString(),
+        joiningDate: joiningDate || null,
         isActive: existing?.isActive ?? true,
       }),
     onSuccess: () => {
@@ -165,6 +167,10 @@ function DriverDialog({
           <div className="space-y-2">
             <Label htmlFor="salary">Salary</Label>
             <Input id="salary" type="number" value={salary} onChange={(e) => setSalary(e.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="joiningDate">Joining date (optional)</Label>
+            <Input id="joiningDate" type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
           </div>
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>

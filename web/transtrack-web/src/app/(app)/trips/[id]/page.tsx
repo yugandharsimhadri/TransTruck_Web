@@ -18,9 +18,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { Trip, Vehicle, Driver, Party, City } from "@/lib/types";
+import type { Trip, Vehicle, Driver, Party, City, State } from "@/lib/types";
 import Link from "next/link";
 import { ArrowLeft, Trash2, Lock, LockOpen, Share2, FileText, Receipt, Wallet, Plus, ChevronDown } from "lucide-react";
 import { shareFile, shareText } from "@/lib/share";
@@ -52,6 +54,12 @@ export default function TripDetailPage() {
   const driversQuery = useQuery({ queryKey: ["drivers"], queryFn: () => api.get<Driver[]>("/api/drivers") });
   const partiesQuery = useQuery({ queryKey: ["parties"], queryFn: () => api.get<Party[]>("/api/masters/parties") });
   const citiesQuery = useQuery({ queryKey: ["cities"], queryFn: () => api.get<City[]>("/api/masters/cities") });
+  const statesQuery = useQuery({ queryKey: ["states"], queryFn: () => api.get<State[]>("/api/masters/states") });
+
+  // Quick-add from the trip form: create the record, then select it —
+  // reuses the same masters endpoints/validation the Masters screen uses.
+  const [quickAddParty, setQuickAddParty] = useState<string | null>(null);
+  const [quickAddCity, setQuickAddCity] = useState<{ text: string; target: "from" | "to" } | null>(null);
 
   const trip = tripQuery.data;
 
@@ -269,16 +277,12 @@ export default function TripDetailPage() {
             </div>
             <div className="space-y-2">
               <Label>Vehicle</Label>
-              <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose">
-                    {(v: string) => vehiclesQuery.data?.find((x) => x.id === v)?.display ?? "Choose"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {vehiclesQuery.data?.map((v) => <SelectItem key={v.id} value={v.id}>{v.display}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchablePicker
+                label="Vehicle"
+                value={vehicleId}
+                onSelect={setVehicleId}
+                options={(vehiclesQuery.data ?? []).map((v) => ({ id: v.id, label: v.display }))}
+              />
             </div>
           </div>
 
@@ -298,45 +302,39 @@ export default function TripDetailPage() {
             </div>
             <div className="space-y-2">
               <Label>Party</Label>
-              <Select value={partyId} onValueChange={(v) => setPartyId(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose">
-                    {(v: string) => partiesQuery.data?.find((x) => x.id === v)?.name ?? "Choose"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {partiesQuery.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchablePicker
+                label="Party"
+                value={partyId}
+                onSelect={setPartyId}
+                options={(partiesQuery.data ?? []).map((p) => ({ id: p.id, label: p.name, sublabel: p.phone ?? undefined }))}
+                onAddNew={(text) => setQuickAddParty(text)}
+                addNewLabel="Add party"
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label>From</Label>
-              <Select value={fromCityId} onValueChange={(v) => setFromCityId(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose">
-                    {(v: string) => citiesQuery.data?.find((x) => x.id === v)?.display ?? "Choose"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {citiesQuery.data?.map((c) => <SelectItem key={c.id} value={c.id}>{c.display}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchablePicker
+                label="From city"
+                value={fromCityId}
+                onSelect={setFromCityId}
+                options={(citiesQuery.data ?? []).map((c) => ({ id: c.id, label: c.display }))}
+                onAddNew={(text) => setQuickAddCity({ text, target: "from" })}
+                addNewLabel="Add location"
+              />
             </div>
             <div className="space-y-2">
               <Label>To</Label>
-              <Select value={toCityId} onValueChange={(v) => setToCityId(v ?? "")}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Choose">
-                    {(v: string) => citiesQuery.data?.find((x) => x.id === v)?.display ?? "Choose"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {citiesQuery.data?.map((c) => <SelectItem key={c.id} value={c.id}>{c.display}</SelectItem>)}
-                </SelectContent>
-              </Select>
+              <SearchablePicker
+                label="To city"
+                value={toCityId}
+                onSelect={setToCityId}
+                options={(citiesQuery.data ?? []).map((c) => ({ id: c.id, label: c.display }))}
+                onAddNew={(text) => setQuickAddCity({ text, target: "to" })}
+                addNewLabel="Add location"
+              />
             </div>
           </div>
 
@@ -398,6 +396,21 @@ export default function TripDetailPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <QuickAddPartyDialog
+        searchText={quickAddParty}
+        onClose={() => setQuickAddParty(null)}
+        onAdded={(id) => { setPartyId(id); queryClient.invalidateQueries({ queryKey: ["parties"] }); }}
+      />
+      <QuickAddCityDialog
+        request={quickAddCity}
+        states={statesQuery.data ?? []}
+        onClose={() => setQuickAddCity(null)}
+        onAdded={(id, target) => {
+          if (target === "from") setFromCityId(id); else setToCityId(id);
+          queryClient.invalidateQueries({ queryKey: ["cities"] });
+        }}
+      />
 
       {trip && (
         <>
@@ -549,6 +562,139 @@ export default function TripDetailPage() {
         </>
       )}
     </div>
+  );
+}
+
+/** Add a party without leaving the trip form. Same POST/validation the
+ *  Masters screen uses — just name is required, phone is optional. */
+function QuickAddPartyDialog({
+  searchText,
+  onClose,
+  onAdded,
+}: {
+  searchText: string | null;
+  onClose: () => void;
+  onAdded: (id: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState("");
+
+  const [openFor, setOpenFor] = useState(searchText);
+  if (openFor !== searchText) {
+    setOpenFor(searchText);
+    setName(searchText ?? "");
+    setPhone("");
+    setError("");
+  }
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post<string>("/api/masters/parties", {
+        id: "00000000-0000-0000-0000-000000000000",
+        name,
+        phone: phone || null,
+      }),
+    onSuccess: (id) => {
+      toast.success("Party added.");
+      onAdded(id);
+      onClose();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong."),
+  });
+
+  return (
+    <Dialog open={searchText !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Add party</DialogTitle></DialogHeader>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
+          <div className="space-y-2">
+            <Label>Name</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-12 text-base" required autoFocus />
+          </div>
+          <div className="space-y-2">
+            <Label>Phone (optional)</Label>
+            <Input value={phone} onChange={(e) => setPhone(e.target.value)} className="h-12 text-base" />
+          </div>
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={mutation.isPending} className="w-full">
+              {mutation.isPending ? "Adding…" : "Add party"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Add a from/to location without leaving the trip form. A city needs a
+ *  state, so this is the one field the trip form can't skip. */
+function QuickAddCityDialog({
+  request,
+  states,
+  onClose,
+  onAdded,
+}: {
+  request: { text: string; target: "from" | "to" } | null;
+  states: State[];
+  onClose: () => void;
+  onAdded: (id: string, target: "from" | "to") => void;
+}) {
+  const [name, setName] = useState("");
+  const [stateId, setStateId] = useState("");
+  const [error, setError] = useState("");
+
+  const [openFor, setOpenFor] = useState(request);
+  if (openFor !== request) {
+    setOpenFor(request);
+    setName(request?.text ?? "");
+    setStateId("");
+    setError("");
+  }
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post<string>("/api/masters/cities", { id: "00000000-0000-0000-0000-000000000000", name, stateId }),
+    onSuccess: (id) => {
+      toast.success("Location added.");
+      onAdded(id, request!.target);
+      onClose();
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong."),
+  });
+
+  return (
+    <Dialog open={request !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Add location</DialogTitle></DialogHeader>
+        <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
+          <div className="space-y-2">
+            <Label>City</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="h-12 text-base" required autoFocus />
+          </div>
+          <div className="space-y-2">
+            <Label>State</Label>
+            <Select value={stateId} onValueChange={(v) => setStateId(v ?? "")}>
+              <SelectTrigger className="h-12 w-full text-base">
+                <SelectValue placeholder="Choose a state">
+                  {(v: string) => states.find((s) => s.id === v)?.name ?? "Choose a state"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {states.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+          {error && <p className="text-sm font-medium text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="submit" disabled={mutation.isPending || !stateId} className="w-full">
+              {mutation.isPending ? "Adding…" : "Add location"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 

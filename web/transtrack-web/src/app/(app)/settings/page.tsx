@@ -212,13 +212,16 @@ function CompanyTab() {
               Off by default. Nothing is printed unless this is on and the fields below are filled in.
             </p>
           </div>
-          <input
+          <button
             id="showBank"
-            type="checkbox"
-            checked={showBankDetailsOnBill}
-            onChange={(e) => setShowBankDetailsOnBill(e.target.checked)}
-            className="h-5 w-5 shrink-0"
-          />
+            type="button"
+            role="switch"
+            aria-checked={showBankDetailsOnBill}
+            onClick={() => setShowBankDetailsOnBill((v) => !v)}
+            className={`relative h-8 w-14 shrink-0 rounded-full transition-colors ${showBankDetailsOnBill ? "bg-success" : "bg-muted"}`}
+          >
+            <span className={`absolute top-1 left-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${showBankDetailsOnBill ? "translate-x-6" : "translate-x-0"}`} />
+          </button>
         </div>
         <div className="space-y-2">
           <Label className="text-base">Bank account number</Label>

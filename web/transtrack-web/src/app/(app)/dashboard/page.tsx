@@ -69,7 +69,7 @@ export default function DashboardPage() {
             tone="danger"
             icon={AlertTriangle}
             title={`${expired.length} vehicle ${expired.length === 1 ? "document has" : "documents have"} expired`}
-            detail={`${expired[0].regNo} · ${expired[0].document}${expired.length > 1 ? ` and ${expired.length - 1} more` : ""}`}
+            detail={`${expired[0].vehicleRegNo} · ${expired[0].documentName}${expired.length > 1 ? ` and ${expired.length - 1} more` : ""}`}
             href="/masters"
           />
         )}
@@ -162,22 +162,25 @@ export default function DashboardPage() {
         </Card>
       </Link>
 
-      {/* Expiring-but-not-yet-expired documents: worth knowing, not an
-          emergency, so they sit below the money rather than above it. */}
-      {alerts.length > expired.length && (
+      {/* Vehicle document alerts: expired first (needs action now), then
+          expiring soon (worth knowing, not an emergency) — kept below the
+          money since neither is what most visits are for. */}
+      {alerts.length > 0 && (
         <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="text-sm font-medium">Expiring in the next 30 days</p>
-            {alerts
-              .filter((a) => !a.isExpired)
-              .map((a, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 text-sm">
-                  <span className="min-w-0 truncate">
-                    {a.regNo} · <span className="text-muted-foreground">{a.document}</span>
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{formatDate(a.upto)}</span>
-                </div>
-              ))}
+          <CardContent className="space-y-3 p-4">
+            <p className="text-sm font-medium">Vehicle document alerts</p>
+            {expired.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase text-destructive">Expired</p>
+                {expired.map((a, i) => <AlertRow key={i} alert={a} />)}
+              </div>
+            )}
+            {alerts.length > expired.length && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase text-warning">Expiring soon</p>
+                {alerts.filter((a) => !a.isExpired).map((a, i) => <AlertRow key={i} alert={a} />)}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -240,6 +243,24 @@ function AttentionRow({
         </div>
         <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
       </div>
+    </Link>
+  );
+}
+
+/** One vehicle document's alert line — days overdue when expired, days
+ *  remaining when still coming up. Tapping goes to Masters (Vehicles is its
+ *  default tab), the only vehicle-editing screen the app has today. */
+function AlertRow({ alert }: { alert: ComplianceAlert }) {
+  const days = Math.ceil((new Date(alert.upto).getTime() - Date.now()) / 86_400_000);
+
+  return (
+    <Link href="/masters" className="flex items-center justify-between gap-3 rounded-lg py-1 text-sm transition active:scale-[0.99]">
+      <span className="min-w-0 truncate">
+        {alert.vehicleRegNo} · <span className="text-muted-foreground">{alert.documentName}</span>
+      </span>
+      <span className="shrink-0 text-xs text-muted-foreground">
+        {formatDate(alert.upto)} · {alert.isExpired ? `${Math.abs(days)} days overdue` : `${days} days left`}
+      </span>
     </Link>
   );
 }

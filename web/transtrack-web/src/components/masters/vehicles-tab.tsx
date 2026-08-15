@@ -130,6 +130,11 @@ function VehicleDialog({
   const [ownership, setOwnership] = useState<VehicleOwnership>(existing?.ownership ?? "Own");
   const [ownerName, setOwnerName] = useState(existing?.owner?.name ?? "");
   const [ownerPhone, setOwnerPhone] = useState(existing?.owner?.phone ?? "");
+  const [permitUpto, setPermitUpto] = useState(existing?.permitUpto?.slice(0, 10) ?? "");
+  const [nationalPermitUpto, setNationalPermitUpto] = useState(existing?.nationalPermitUpto?.slice(0, 10) ?? "");
+  const [insuranceUpto, setInsuranceUpto] = useState(existing?.insuranceUpto?.slice(0, 10) ?? "");
+  const [fitnessUpto, setFitnessUpto] = useState(existing?.fitnessUpto?.slice(0, 10) ?? "");
+  const [pollutionUpto, setPollutionUpto] = useState(existing?.pollutionUpto?.slice(0, 10) ?? "");
   const [error, setError] = useState("");
 
   // Re-seed local state whenever a different vehicle (or "new") is opened.
@@ -142,6 +147,11 @@ function VehicleDialog({
     setOwnership(existing?.ownership ?? "Own");
     setOwnerName(existing?.owner?.name ?? "");
     setOwnerPhone(existing?.owner?.phone ?? "");
+    setPermitUpto(existing?.permitUpto?.slice(0, 10) ?? "");
+    setNationalPermitUpto(existing?.nationalPermitUpto?.slice(0, 10) ?? "");
+    setInsuranceUpto(existing?.insuranceUpto?.slice(0, 10) ?? "");
+    setFitnessUpto(existing?.fitnessUpto?.slice(0, 10) ?? "");
+    setPollutionUpto(existing?.pollutionUpto?.slice(0, 10) ?? "");
     setError("");
   }
 
@@ -164,6 +174,11 @@ function VehicleDialog({
         ownerId: ownership === "Other" ? ownerId : null,
         vehicleType: vehicleType || null,
         capacity: capacity ? Number(capacity) : null,
+        permitUpto: permitUpto || null,
+        nationalPermitUpto: nationalPermitUpto || null,
+        insuranceUpto: insuranceUpto || null,
+        fitnessUpto: fitnessUpto || null,
+        pollutionUpto: pollutionUpto || null,
         isActive: existing?.isActive ?? true,
       });
     },
@@ -226,6 +241,31 @@ function VehicleDialog({
               </div>
             </div>
           )}
+          <div className="space-y-2 rounded-lg border p-3">
+            <Label className="text-xs text-muted-foreground">Document dates (optional)</Label>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label htmlFor="permitUpto" className="text-xs">Permit</Label>
+                <Input id="permitUpto" type="date" value={permitUpto} onChange={(e) => setPermitUpto(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="nationalPermitUpto" className="text-xs">National permit</Label>
+                <Input id="nationalPermitUpto" type="date" value={nationalPermitUpto} onChange={(e) => setNationalPermitUpto(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="insuranceUpto" className="text-xs">Insurance</Label>
+                <Input id="insuranceUpto" type="date" value={insuranceUpto} onChange={(e) => setInsuranceUpto(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="fitnessUpto" className="text-xs">Fitness</Label>
+                <Input id="fitnessUpto" type="date" value={fitnessUpto} onChange={(e) => setFitnessUpto(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="pollutionUpto" className="text-xs">Pollution</Label>
+                <Input id="pollutionUpto" type="date" value={pollutionUpto} onChange={(e) => setPollutionUpto(e.target.value)} />
+              </div>
+            </div>
+          </div>
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={mutation.isPending} className="w-full">

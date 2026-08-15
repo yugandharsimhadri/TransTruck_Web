@@ -46,7 +46,7 @@ export interface Driver {
   name: string;
   phone: string;
   salary: number;
-  joiningDate: string;
+  joiningDate?: string | null;
   isActive: boolean;
   display: string;
 }
@@ -202,8 +202,8 @@ export interface CategoryFigure {
 }
 
 export interface ComplianceAlert {
-  regNo: string;
-  document: string;
+  vehicleRegNo: string;
+  documentName: string;
   upto: string;
   isExpired: boolean;
 }

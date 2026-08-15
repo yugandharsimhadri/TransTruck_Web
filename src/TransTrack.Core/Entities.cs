@@ -95,7 +95,7 @@ public class Driver : BaseEntity, ITenantEntity
     public string Name { get; set; } = string.Empty;
     public string Phone { get; set; } = string.Empty;
     public decimal Salary { get; set; }
-    public DateTime JoiningDate { get; set; } = DateTime.Today;
+    public DateTime? JoiningDate { get; set; }
     public bool IsActive { get; set; } = true;
 
     public string Display => $"{EmployeeCode} — {Name}";
