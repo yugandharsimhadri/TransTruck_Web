@@ -14,7 +14,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api } from "@/lib/api";
@@ -34,8 +33,6 @@ const sortLabels: Record<SortKey, string> = {
 
 export default function TripsPage() {
   const [filter, setFilter] = useState<"open" | "closed" | "all">("open");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
   const [regNo, setRegNo] = useState("");
   const [sort, setSort] = useState<SortKey>("date-desc");
 
@@ -50,8 +47,6 @@ export default function TripsPage() {
   const trips = (tripsQuery.data ?? [])
     .filter((t) => (filter === "all" ? true : filter === "open" ? t.status === "Open" : t.status === "Closed"))
     .filter((t) => !regNo || t.vehicleRegNo === regNo)
-    .filter((t) => !from || t.date.slice(0, 10) >= from)
-    .filter((t) => !to || t.date.slice(0, 10) <= to)
     .sort((a, b) => {
       switch (sort) {
         case "date-asc": return a.date.localeCompare(b.date);
@@ -103,14 +98,6 @@ export default function TripsPage() {
                 ...(vehiclesQuery.data ?? []).map((v) => ({ id: v.regNo, label: v.regNo })),
               ]}
             />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Trip date from</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11" />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Trip date to</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-11" />
           </div>
         </div>
         <div className="space-y-1">
