@@ -38,6 +38,11 @@ builder.Services.AddSingleton<AuthService>();
 builder.Services.AddSingleton<MasterDataService>();
 builder.Services.AddSingleton<DriverService>();
 builder.Services.AddSingleton<VehicleService>();
+
+// Swap this one line for a cloud implementation when the move to object
+// storage happens — nothing else in the app knows where the bytes live.
+builder.Services.AddSingleton<IVehicleDocumentStorage, FileSystemVehicleDocumentStorage>();
+builder.Services.AddSingleton<VehicleDocumentService>();
 builder.Services.AddSingleton<TripService>();
 builder.Services.AddSingleton<TripTransactionService>();
 builder.Services.AddSingleton<MaintenanceService>();

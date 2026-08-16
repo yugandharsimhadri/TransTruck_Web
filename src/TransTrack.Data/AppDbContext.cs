@@ -36,6 +36,7 @@ public class AppDbContext : DbContext
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+    public DbSet<VehicleDocument> VehicleDocuments => Set<VehicleDocument>();
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
     public DbSet<MaintenanceCategory> MaintenanceCategories => Set<MaintenanceCategory>();
     public DbSet<Counter> Counters => Set<Counter>();
@@ -92,6 +93,16 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.Owner).WithMany()
                 .HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Restrict);
             e.Ignore(x => x.Display);
+        });
+
+        b.Entity<VehicleDocument>(e =>
+        {
+            // One document per vehicle, enforced in the schema rather than
+            // only in the service — filtered so a replaced (soft-deleted) row
+            // never blocks uploading a new one.
+            e.HasIndex(x => x.VehicleId).IsUnique().HasFilter("\"IsDeleted\" = 0");
+            e.HasOne(x => x.Vehicle).WithMany()
+                .HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Cascade);
         });
 
         b.Entity<ExpenseCategory>(e => e.HasIndex(x => x.Name));

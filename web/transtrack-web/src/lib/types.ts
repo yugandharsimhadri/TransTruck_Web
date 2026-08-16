@@ -68,6 +68,16 @@ export interface Vehicle {
   display: string;
 }
 
+/** The one document held against a vehicle. The API returns null when none
+ *  has been uploaded — a normal state, not an error. */
+export interface VehicleDocumentInfo {
+  vehicleId: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedOn: string;
+}
+
 export interface ExpenseCategory {
   id: string;
   name: string;

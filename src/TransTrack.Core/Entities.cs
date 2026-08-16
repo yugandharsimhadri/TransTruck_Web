@@ -135,6 +135,37 @@ public class Vehicle : BaseEntity, ITenantEntity
         upto.HasValue && upto.Value.Date >= DateTime.Today && upto.Value.Date <= DateTime.Today.AddDays(withinDays);
 }
 
+/// <summary>The single document held against a vehicle (RC book, permit scan,
+/// insurance copy — whatever the company keeps). Deliberately its own table
+/// rather than columns on <see cref="Vehicle"/>: it is written once in a while
+/// from Settings and read only when someone asks for it, so keeping it out of
+/// the vehicle row means no list, trip or dashboard query can ever drag a
+/// multi-megabyte file along with it.
+///
+/// Only the *reference* lives here — the bytes sit on disk (see
+/// VehicleDocumentStorage). <see cref="StoredPath"/> is deliberately a plain
+/// string rather than anything filesystem-specific, so moving to cloud object
+/// storage later means swapping the storage implementation and putting an
+/// object key in this same column, with no schema change.</summary>
+public class VehicleDocument : BaseEntity, ITenantEntity
+{
+    public Guid CompanyId { get; set; }
+
+    public Guid VehicleId { get; set; }
+    public Vehicle Vehicle { get; set; } = null!;
+
+    /// <summary>The name the user's file had when they uploaded it — what the
+    /// download is named, so it arrives recognisable.</summary>
+    public string FileName { get; set; } = string.Empty;
+
+    public string ContentType { get; set; } = "application/octet-stream";
+    public long SizeBytes { get; set; }
+
+    /// <summary>Where the bytes are: a path today, an object key after the
+    /// move to cloud storage.</summary>
+    public string StoredPath { get; set; } = string.Empty;
+}
+
 public class ExpenseCategory : BaseEntity, INamedEntity, ITenantEntity
 {
     public Guid CompanyId { get; set; }

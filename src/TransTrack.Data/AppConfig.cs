@@ -17,6 +17,16 @@ public class AppSettings
     /// <summary>Daily backups to keep before the oldest is deleted.</summary>
     public int BackupsToKeep { get; set; } = 14;
 
+    /// <summary>Where uploaded vehicle documents are stored. Null uses the
+    /// default (C:\TransTruckWeb\VehicleDocs). Kept out of the database on
+    /// purpose — these are 1-5 MB files, so only the reference is stored in
+    /// the VehicleDocuments table.</summary>
+    public string? VehicleDocumentDirectory { get; set; }
+
+    /// <summary>Largest upload accepted, in MB. Rejected above this with a
+    /// plain message rather than a failed request.</summary>
+    public int VehicleDocumentMaxMb { get; set; } = 10;
+
     /// <summary>Days of log files to keep.</summary>
     public int LogDaysToKeep { get; set; } = 30;
 

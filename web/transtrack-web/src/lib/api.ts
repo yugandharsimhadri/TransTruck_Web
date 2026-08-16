@@ -70,8 +70,37 @@ async function requestFile(path: string, fallbackName: string): Promise<File> {
   return new File([blob], filename, { type: blob.type });
 }
 
+/**
+ * Uploads a file as multipart/form-data — deliberately not base64-in-JSON:
+ * these are 1-5 MB documents, and encoding them inflates the payload by a
+ * third and costs a phone real memory. Content-Type is left unset on purpose
+ * so the browser adds the multipart boundary itself.
+ */
+async function uploadFile<T>(path: string, file: File, field = "file"): Promise<T> {
+  const body = new FormData();
+  body.append(field, file);
+
+  const res = await fetch(`${API_URL}${path}`, { method: "POST", credentials: "include", body });
+
+  if (!res.ok) {
+    let message = res.statusText;
+    try {
+      const parsed = await res.json();
+      message = parsed?.message ?? message;
+    } catch {
+      // No JSON body — the status text is all we have.
+    }
+    throw new ApiError(res.status, message);
+  }
+
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
+}
+
 export const api = {
   get: <T>(path: string) => request<T>(path),
+  upload: uploadFile,
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   put: <T>(path: string, body?: unknown) =>
