@@ -26,10 +26,10 @@ import { TruckEmpty } from "@/components/truck-drive";
 type SortKey = "date-desc" | "date-asc" | "balance-desc" | "amount-desc";
 
 const sortLabels: Record<SortKey, string> = {
-  "date-desc": "Trip date — newest first",
-  "date-asc": "Trip date — oldest first",
-  "balance-desc": "Balance — highest first",
-  "amount-desc": "Trip amount — highest first",
+  "date-desc": "Latest Trips",
+  "date-asc": "Oldest Trips",
+  "balance-desc": "Highest Balance",
+  "amount-desc": "Highest Trip Amount",
 };
 
 export default function TripsPage() {
