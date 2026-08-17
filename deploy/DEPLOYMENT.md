@@ -67,7 +67,7 @@ Deploy:
 ```
 
 That runs it in Production on `http://localhost:6041`, which the Cloudflare
-Tunnel exposes as `ttapi.sivayaantechnologies.com`. On startup it backs up,
+Tunnel exposes as `api.lorryowner.com`. On startup it backs up,
 migrates, then serves.
 
 **Do not delete `C:\TransTruckWeb\secrets\jwt.key`.** Every signed-in session
@@ -100,7 +100,7 @@ root, next to the static files it serves.
    `global_fetch_strictly_public` (production *and* preview), then redeploy so
    the flags take effect.
 4. First deployment only: **Settings → Custom domains** → add
-   `transtruck.sivayaantechnologies.com`.
+   `lorryowner.com`.
 
 To rebuild after future changes:
 

@@ -28,7 +28,7 @@ public static class ReportPdfBuilder
 
             row.RelativeItem().Column(col =>
             {
-                col.Item().Text(string.IsNullOrWhiteSpace(company.CompanyName) ? "TransTrack" : company.CompanyName).FontSize(16).Bold();
+                col.Item().Text(string.IsNullOrWhiteSpace(company.CompanyName) ? "LorryOwner" : company.CompanyName).FontSize(16).Bold();
                 col.Item().Text(reportTitle).FontSize(12).SemiBold();
                 col.Item().Text(filterSummary).FontSize(8.5f).FontColor(Colors.Grey.Darken1);
             });

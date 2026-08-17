@@ -1,12 +1,12 @@
-# Deploying TransTruck
+# Deploying LorryOwner
 
 Two independent pieces, deployed separately:
 
 - **API** (`src/TransTrack.Api`) — runs on your local server, port **6041**,
-  exposed publicly as `https://ttapi.sivayaantechnologies.com` through a
+  exposed publicly as `https://api.lorryowner.com` through a
   Cloudflare Tunnel.
 - **Web app** (`web/transtrack-web`) — deployed to Cloudflare Workers as
-  `https://transtruck.sivayaantechnologies.com`.
+  `https://lorryowner.com`.
 
 Everything below is scripted. The only steps that can't be scripted are the
 two that inherently require *you* to prove account ownership to Cloudflare —
@@ -81,15 +81,15 @@ That's `opennextjs-cloudflare build && opennextjs-cloudflare deploy` under
 the hood. It builds the Next.js app, bundles it for Cloudflare Workers, and
 pushes it live — and because
 [`wrangler.jsonc`](web/transtrack-web/wrangler.jsonc) declares
-`transtruck.sivayaantechnologies.com` as a custom-domain route, the domain
+`lorryowner.com` as a custom-domain route, the domain
 attaches automatically on that same deploy; no dashboard click needed
-(sivayaantechnologies.com already has to be an active zone in your
+(lorryowner.com already has to be an active zone in your
 Cloudflare account for this to work — it already is, since it's serving
-`ttapi.sivayaantechnologies.com` via the tunnel).
+`api.lorryowner.com` via the tunnel).
 
 The API's URL is baked in at
 [`.env.production`](web/transtrack-web/.env.production)
-(`NEXT_PUBLIC_API_URL=https://ttapi.sivayaantechnologies.com`) — committed
+(`NEXT_PUBLIC_API_URL=https://api.lorryowner.com`) — committed
 to the repo since it's a public URL, not a secret, so no dashboard
 environment variable needs setting either.
 
@@ -111,9 +111,9 @@ Cloudflare setup touches ordinary local development.
 
 ## Cross-origin auth, and why nothing needed to change there
 
-`transtruck.sivayaantechnologies.com` and `ttapi.sivayaantechnologies.com`
+`lorryowner.com` and `api.lorryowner.com`
 are different *subdomains* but the same *registrable domain*
-(`sivayaantechnologies.com`), and both are HTTPS. For the `SameSite` cookie
+(`lorryowner.com`), and both are HTTPS. For the `SameSite` cookie
 rules that matters — subdomains of the same registrable domain count as
 "same-site" to a browser, so the existing `SameSite=Strict` session cookie
 (set in [`AuthCookie.cs`](src/TransTrack.Api/Auth/AuthCookie.cs)) is sent on

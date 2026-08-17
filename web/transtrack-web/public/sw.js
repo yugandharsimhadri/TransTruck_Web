@@ -1,7 +1,7 @@
 // Minimal offline shell — caches the app's own static assets so the shell
 // still loads with no connection; API calls always go to the network (never
 // cached, since fleet data must never be served stale to a driver mid-trip).
-const CACHE_NAME = "transtruck-shell-v1";
+const CACHE_NAME = "lorryowner-shell-v2";
 const SHELL_URLS = ["/", "/login", "/manifest.json", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

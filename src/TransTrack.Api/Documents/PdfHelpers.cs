@@ -32,7 +32,7 @@ internal static class PdfHelpers
         {
             void Details(ColumnDescriptor c)
             {
-                var name = string.IsNullOrWhiteSpace(company.CompanyName) ? "TransTrack" : company.CompanyName;
+                var name = string.IsNullOrWhiteSpace(company.CompanyName) ? "LorryOwner" : company.CompanyName;
                 c.Item().AlignCenter().Text(name).FontSize(16).Bold();
 
                 if (!string.IsNullOrWhiteSpace(company.Tagline))

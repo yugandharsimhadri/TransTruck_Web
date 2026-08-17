@@ -151,7 +151,7 @@ export default function LoginPage() {
           <div className="mb-1 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-primary-foreground shadow-md shadow-primary/30">
             <TruckMark className="h-9 w-9" />
           </div>
-          <CardTitle className="text-2xl">TransTruck</CardTitle>
+          <CardTitle className="text-2xl">LorryOwner</CardTitle>
           <CardDescription>Fleet &amp; trip management</CardDescription>
         </CardHeader>
         <CardContent>
@@ -188,7 +188,7 @@ export default function LoginPage() {
                 {busy ? "Signing in…" : "Sign in"}
               </Button>
               <div className="text-center text-sm text-muted-foreground">
-                New to TransTruck?{" "}
+                New to LorryOwner?{" "}
                 <button
                   type="button"
                   className="font-medium text-primary underline-offset-4 hover:underline"

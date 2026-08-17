@@ -19,12 +19,12 @@
     { "binding": "WORKER_SELF_REFERENCE", "service": "transtruck-web" }
   ],
 
-  // Attaches transtruck.sivayaantechnologies.com on `npm run deploy` — no
-  // dashboard click needed — since sivayaantechnologies.com is already an
-  // active zone in this Cloudflare account (it's already serving
-  // ttapi.sivayaantechnologies.com via the tunnel). If the zone ever moves
-  // accounts, this line is the one thing that would need re-pointing.
+  // Attaches lorryowner.com on `npm run deploy`, once that zone is active in
+  // this Cloudflare account. Only used by the Workers deploy path — the live
+  // deployment goes out via Cloudflare Pages (see
+  // deploy/frontend-artifacts/pages-deploy-README.txt), where the custom
+  // domain is attached in the Pages project's own settings instead.
   "routes": [
-    { "pattern": "transtruck.sivayaantechnologies.com", "custom_domain": true }
+    { "pattern": "lorryowner.com", "custom_domain": true }
   ]
 }

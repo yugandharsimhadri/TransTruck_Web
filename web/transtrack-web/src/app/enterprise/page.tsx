@@ -59,7 +59,7 @@ export default function EnterprisePage() {
             <TruckMark className="h-5 w-5" />
           </div>
           <div>
-            <p className="font-semibold leading-none">TransTruck</p>
+            <p className="font-semibold leading-none">LorryOwner</p>
             <p className="text-xs text-muted-foreground">EnterpriseAdmin</p>
           </div>
         </div>

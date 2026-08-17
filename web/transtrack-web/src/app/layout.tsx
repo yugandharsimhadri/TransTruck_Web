@@ -7,10 +7,12 @@ import { ServiceWorkerRegister } from "@/components/sw-register";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "TransTruck",
+  title: "LorryOwner",
   description: "Fleet & trip management",
   manifest: "/manifest.json",
-  icons: { icon: "/icon.svg", apple: "/icon.svg" },
+  // apple must be a PNG: iOS ignores SVG for the home-screen icon, and would
+  // otherwise fall back to a screenshot of the page.
+  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {

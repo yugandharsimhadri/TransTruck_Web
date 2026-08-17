@@ -72,7 +72,7 @@ public static class BillDocument
                 col.Item().PaddingTop(40).Row(row =>
                 {
                     row.RelativeItem().Text("Customer's sign: ____________________").FontSize(8.5f);
-                    row.RelativeItem().AlignRight().Text($"For {(string.IsNullOrWhiteSpace(company.CompanyName) ? "TransTrack" : company.CompanyName)}").FontSize(8.5f);
+                    row.RelativeItem().AlignRight().Text($"For {(string.IsNullOrWhiteSpace(company.CompanyName) ? "LorryOwner" : company.CompanyName)}").FontSize(8.5f);
                 });
             })));
 

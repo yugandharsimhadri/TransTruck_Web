@@ -25,7 +25,7 @@ One-time setup
      global_fetch_strictly_public
    Then redeploy (Pages needs a fresh deployment to pick up flag changes —
    re-upload the same zip again, or use "Retry deployment").
-5. Settings -> Custom domains -> Add transtruck.sivayaantechnologies.com.
+5. Settings -> Custom domains -> Add lorryowner.com.
    (Remove it from the old Pages/Worker attempt first if it's still
    attached there — a domain can only point to one project at a time.)
 

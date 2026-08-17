@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>LorryOwner — LO Monogram</title>
+  <defs>
+    <linearGradient id="c" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F97316"/>
+      <stop offset="1" stop-color="#C2410C"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#c)"/>
+
+  <!-- "L" with a proper foot, so it can never be misread as an I. -->
+  <path d="M104 104h58v148h96v58H104z" fill="#ffffff"/>
+
+  <!-- "O" as a tyre: heavy ring plus hub reads as both letter and wheel. -->
+  <circle cx="350" cy="212" r="98" fill="none" stroke="#ffffff" stroke-width="50"/>
+  <circle cx="350" cy="212" r="26" fill="#ffffff"/>
+
+  <!-- The road both letters stand on. -->
+  <rect x="104" y="352" width="304" height="32" rx="16" fill="#ffffff"/>
+  <g fill="#C2410C">
+    <rect x="140" y="362" width="48" height="12" rx="6"/>
+    <rect x="232" y="362" width="48" height="12" rx="6"/>
+    <rect x="324" y="362" width="48" height="12" rx="6"/>
+  </g>
+</svg>

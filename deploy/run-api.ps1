@@ -1,5 +1,5 @@
 # Runs the published API in Production mode on http://localhost:6041, the
-# port the Cloudflare Tunnel forwards ttapi.sivayaantechnologies.com to.
+# port the Cloudflare Tunnel forwards api.lorryowner.com to.
 #
 # The JWT signing key is never committed to git (this repo is public) and
 # never has to be typed in by hand either: the first time this script runs

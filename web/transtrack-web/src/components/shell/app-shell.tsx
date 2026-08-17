@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <TruckMark className="h-6 w-6" />
           </div>
           <div className="min-w-0">
-            <p className="font-semibold leading-none">TransTruck</p>
+            <p className="font-semibold leading-none">LorryOwner</p>
             <p className="truncate text-xs text-sidebar-foreground/60">{user?.companyName}</p>
           </div>
         </div>
@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <TruckMark className="h-5 w-5" />
           </div>
-          <p className="font-semibold leading-none">TransTruck</p>
+          <p className="font-semibold leading-none">LorryOwner</p>
         </div>
         <div className="flex items-center gap-1">
           <ThemeToggle />

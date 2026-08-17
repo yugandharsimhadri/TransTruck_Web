@@ -92,7 +92,7 @@ public static class LrDocument
             col.Item().PaddingTop(40).Row(row =>
             {
                 row.RelativeItem().Text("Unloading by consignee at: ____________________").FontSize(8);
-                row.RelativeItem().AlignRight().Text($"For {(string.IsNullOrWhiteSpace(company.CompanyName) ? "TransTrack" : company.CompanyName)}").FontSize(8.5f);
+                row.RelativeItem().AlignRight().Text($"For {(string.IsNullOrWhiteSpace(company.CompanyName) ? "LorryOwner" : company.CompanyName)}").FontSize(8.5f);
             });
         });
     }

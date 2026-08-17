@@ -1,4 +1,4 @@
-# Reference only — cloudflared config for tunnelling ttapi.sivayaantechnologies.com
+# Reference only — cloudflared config for tunnelling api.lorryowner.com
 # to the API running locally on port 6041. Not read by the app itself.
 #
 # One-time setup on the machine that will run the API (this is the only
@@ -6,21 +6,21 @@
 # itself has to happen through your own Cloudflare account):
 #
 #   cloudflared tunnel login
-#   cloudflared tunnel create transtruck-api
-#   cloudflared tunnel route dns transtruck-api ttapi.sivayaantechnologies.com
+#   cloudflared tunnel create lorryowner-api
+#   cloudflared tunnel route dns lorryowner-api api.lorryowner.com
 #
 # That "tunnel create" prints a tunnel ID and writes a credentials JSON file
 # under %USERPROFILE%\.cloudflared\<tunnel-id>.json — fill both into the
 # placeholders below, save this file as %USERPROFILE%\.cloudflared\config.yml,
 # then run it (or install it as a Windows service so it survives reboots):
 #
-#   cloudflared tunnel run transtruck-api
+#   cloudflared tunnel run lorryowner-api
 #   cloudflared service install   # optional: runs the tunnel as a service
 
 tunnel: <YOUR-TUNNEL-ID>
 credentials-file: C:\Users\<YOUR-USER>\.cloudflared\<YOUR-TUNNEL-ID>.json
 
 ingress:
-  - hostname: ttapi.sivayaantechnologies.com
+  - hostname: api.lorryowner.com
     service: http://localhost:6041
   - service: http_status:404
