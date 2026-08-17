@@ -20,7 +20,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import type { CompanySummary, CompanyUserSummary, OnboardResult } from "@/lib/types";
 import { Plus, LogOut, RotateCw, KeyRound, Phone } from "lucide-react";
-import { TruckMark } from "@/components/truck-mark";
+import { BrandMark } from "@/components/brand-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function EnterprisePage() {
@@ -55,9 +55,7 @@ export default function EnterprisePage() {
     <div className="min-h-screen bg-muted/40">
       <header className="flex items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <TruckMark className="h-5 w-5" />
-          </div>
+          <BrandMark className="h-9 w-9" />
           <div>
             <p className="font-semibold leading-none">LorryOwner</p>
             <p className="text-xs text-muted-foreground">EnterpriseAdmin</p>

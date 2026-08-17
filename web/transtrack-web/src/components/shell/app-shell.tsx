@@ -6,7 +6,7 @@ import { LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { visibleNavItems, visiblePrimaryNavItems, visibleMoreNavItems, moreTabItem } from "./nav-items";
-import { TruckMark } from "@/components/truck-mark";
+import { BrandMark } from "@/components/brand-logo";
 import { TruckAlive } from "@/components/truck-alive";
 import { ThemeToggle } from "@/components/theme-toggle";
 import {
@@ -34,9 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           accent for the active item. */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-sidebar-primary text-sidebar-primary-foreground">
-            <TruckMark className="h-6 w-6" />
-          </div>
+          <BrandMark className="h-10 w-10" />
           <div className="min-w-0">
             <p className="font-semibold leading-none">LorryOwner</p>
             <p className="truncate text-xs text-sidebar-foreground/60">{user?.companyName}</p>
@@ -79,9 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <TruckMark className="h-5 w-5" />
-          </div>
+          <BrandMark className="h-9 w-9" />
           <p className="font-semibold leading-none">LorryOwner</p>
         </div>
         <div className="flex items-center gap-1">

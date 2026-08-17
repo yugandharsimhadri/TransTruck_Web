@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardDescription } from "@/components/ui/card";
 import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import type { LoginResponse } from "@/lib/types";
-import { TruckMark } from "@/components/truck-mark";
+import { BrandLogo } from "@/components/brand-logo";
 import { TruckDrive } from "@/components/truck-drive";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -148,11 +148,10 @@ export default function LoginPage() {
 
       <Card className="w-full max-w-sm border-none shadow-lg shadow-primary/5">
         <CardHeader className="items-center text-center">
-          <div className="mb-1 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary text-primary-foreground shadow-md shadow-primary/30">
-            <TruckMark className="h-9 w-9" />
-          </div>
-          <CardTitle className="text-2xl">LorryOwner</CardTitle>
-          <CardDescription>Fleet &amp; trip management</CardDescription>
+          {/* The full logo already carries the name and the tagline, so no
+              separate title line — repeating it would just say it twice. */}
+          <BrandLogo className="h-auto w-56" />
+          <CardDescription className="sr-only">LorryOwner — fleet &amp; trip management</CardDescription>
         </CardHeader>
         <CardContent>
           {stage === "credentials" && (

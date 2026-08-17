@@ -1,30 +1,57 @@
-// Regenerates the installable icon set from the brand artwork.
-// Run from web/transtrack-web:  node gen-icons.mjs
+// Regenerates every brand asset the app serves, from the two source files in
+// brand/. Run from web/transtrack-web:  node gen-icons.mjs
 //
-// Sources (edit these, not the PNGs):
-//   ../../brand/logo-a-ring.svg           — the app icon
-//   ../../brand/logo-a-ring-maskable.svg  — full-bleed variant for Android
+// Sources (edit/replace these, never the generated files in public/):
+//   ../../brand/lorryowner-logo.png  — full horizontal logo, mark + wordmark
+//   ../../brand/lorryowner-mark.png  — just the mark, cropped from the logo
+//
+// The app icon deliberately uses the MARK ONLY. The wordmark is unreadable
+// once a launcher scales the icon to ~48px, and a logo you can't read is
+// worse than no logo — the wordmark still appears on the login screen, where
+// there is room for it.
 import sharp from 'sharp';
-import { readFileSync, copyFileSync } from 'fs';
 
 const BRAND = '../../brand';
-copyFileSync(`${BRAND}/logo-a-ring.svg`, 'public/icon.svg');
+const mark = `${BRAND}/lorryowner-mark.png`;
+const logo = `${BRAND}/lorryowner-logo.png`;
 
-const icon = readFileSync('public/icon.svg');
-const maskable = readFileSync(`${BRAND}/logo-a-ring-maskable.svg`);
+const NAVY = '#1E3A8A';
+const WHITE = '#ffffff';
 
-// iOS ignores SVG for the home-screen icon, so apple-touch-icon must be a
-// real PNG or "Add to Home Screen" falls back to a screenshot of the page.
-const sizes = {
+/** The mark centred on a square, with breathing room round it. */
+async function square(size, { inset = 0.78, background = WHITE } = {}) {
+  const art = await sharp(mark)
+    .resize({ width: Math.round(size * inset), height: Math.round(size * inset), fit: 'inside' })
+    .toBuffer();
+  const { width, height } = await sharp(art).metadata();
+
+  return sharp({ create: { width: size, height: size, channels: 4, background } })
+    .composite([{ input: art, top: Math.round((size - height) / 2), left: Math.round((size - width) / 2) }])
+    .png()
+    .toBuffer();
+}
+
+// Standard icons. iOS ignores SVG for the home-screen icon and applies its own
+// rounded mask, so a plain square PNG is exactly what it wants.
+for (const [name, size] of Object.entries({
   'icon-192.png': 192,
   'icon-512.png': 512,
   'apple-touch-icon.png': 180,
   'favicon-32.png': 32,
-};
+})) {
+  // The favicon is tiny, so the mark gets nearly the whole tile or it turns to mush.
+  await sharp(await square(size, { inset: 0.94 })).toFile(`public/${name}`);
+}
 
-for (const [name, size] of Object.entries(sizes))
-  await sharp(icon, { density: 400 }).resize(size, size).png().toFile(`public/${name}`);
+// Maskable: Android crops to its own shape (circle, squircle, ...), so the art
+// must sit inside the 80% safe zone and the background must bleed to the edge.
+await sharp(await square(512, { inset: 0.74 })).toFile('public/icon-maskable-512.png');
 
-await sharp(maskable, { density: 400 }).resize(512, 512).png().toFile('public/icon-maskable-512.png');
+// Web copies of the artwork itself. The originals are ~1.2 MB, which is real
+// money on a phone connection — these are the sizes actually displayed.
+await sharp(logo).resize({ width: 900 }).png({ quality: 90, compressionLevel: 9 })
+  .toFile('public/lorryowner-logo.png');
+await sharp(mark).resize({ width: 320 }).png({ quality: 90, compressionLevel: 9 })
+  .toFile('public/lorryowner-mark.png');
 
-console.log('Icons written to public/');
+console.log('Brand assets written to public/');

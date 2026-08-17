@@ -8,11 +8,11 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "LorryOwner",
-  description: "Fleet & trip management",
+  description: "Drive · Manage · Grow",
   manifest: "/manifest.json",
   // apple must be a PNG: iOS ignores SVG for the home-screen icon, and would
   // otherwise fall back to a screenshot of the page.
-  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
+  icons: { icon: "/favicon-32.png", apple: "/apple-touch-icon.png" },
 };
 
 export const viewport: Viewport = {
