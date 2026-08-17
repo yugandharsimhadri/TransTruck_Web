@@ -24,7 +24,12 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
             .OrderBy(e => e.Date).ThenBy(e => e.CreatedAt))
         .ThenInclude(e => e.ExpenseCategory)
         .Include(t => t.Transactions.Where(x => !x.IsDeleted)
-            .OrderBy(x => x.Date).ThenBy(x => x.CreatedAt));
+            .OrderBy(x => x.Date).ThenBy(x => x.CreatedAt))
+        // Two collection includes in one query means SQLite returns a row per
+        // expense *per* amount — 10 of each fetches 100 rows to build 20.
+        // Split issues one query per collection instead. Safe here because
+        // every caller orders explicitly.
+        .AsSplitQuery();
 
     public async Task<List<Trip>> GetTripsAsync()
     {

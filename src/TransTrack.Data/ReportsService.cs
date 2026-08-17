@@ -14,14 +14,26 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
     {
         await using var db = await factory.CreateDbContextAsync();
 
+        // Both child collections are filtered, and deliberately so: expenses
+        // and amounts are soft-deleted, and this report's figures come from
+        // Trip.TotalExpenses / TotalApprovedReceived / BalanceReceivable,
+        // which sum whatever rows the query loaded. Loading them unfiltered
+        // made the report — and its PDF and Excel exports — count money the
+        // user had already removed from the trip.
+        //
+        // AsSplitQuery because there are two collection includes: in a single
+        // query SQLite has to return one row per expense *per* amount, so a
+        // trip with 10 of each fetches 100 rows to build 20. Split issues one
+        // query per collection instead, which is the cheaper shape here.
         var query = db.Trips.AsNoTracking()
             .Include(t => t.Vehicle)
             .Include(t => t.Driver)
             .Include(t => t.Party)
             .Include(t => t.FromCity)
             .Include(t => t.ToCity)
-            .Include(t => t.Expenses)
-            .Include(t => t.Transactions)
+            .Include(t => t.Expenses.Where(e => !e.IsDeleted))
+            .Include(t => t.Transactions.Where(x => !x.IsDeleted))
+            .AsSplitQuery()
             .Where(t => !t.IsDeleted);
 
         if (vehicleId is { } v) query = query.Where(t => t.VehicleId == v);
