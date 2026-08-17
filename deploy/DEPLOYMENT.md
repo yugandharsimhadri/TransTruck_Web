@@ -1,10 +1,20 @@
-# TransTruck deployment guide
+# LorryOwner deployment guide
 
-Covers the release that adds the way bill number, optional consignor/
+Covers the releases that add the way bill number, optional consignor/
 consignee, company bank details on the Bill, Owner-only trip cancellation,
-the party-wise and vehicle-savings reports, and company self-registration.
+the party-wise and vehicle-savings reports, company self-registration,
+vehicle document upload, and the LorryOwner rebrand.
 
 There is no CI/CD: both halves are built locally and deployed by hand.
+
+> **Names in paths and code still say TransTrack / TransTruck.** That is
+> deliberate. The rebrand changed what users see — the app name, logo, icons
+> and the `lorryowner.com` / `api.lorryowner.com` domains — and left internal
+> identifiers alone: the `src/TransTrack.*` projects, the
+> `C:\TransTruckWeb` data folder, the `TRANSTRUCKWEB_*` environment
+> variables, and the JWT issuer/audience. Renaming those would mean moving
+> the live database and secrets by hand, and changing the JWT issuer would
+> sign every user out, all for no user-facing gain.
 
 ---
 
@@ -23,19 +33,32 @@ What this release adds — all additive, nothing rewritten or dropped:
 | Companies | `BankAccountNo` | TEXT | NULL |
 | Companies | `Ifsc` | TEXT | NULL |
 | Companies | `ShowBankDetailsOnBill` | INTEGER | 0 (off) |
+| Drivers | `JoiningDate` | TEXT | now nullable (values kept) |
+| **VehicleDocuments** (new table) | one row per vehicle, holding a *reference* to the uploaded file | — | — |
 
 Every existing row keeps its data. Existing trips get `WayBillNo = NULL` and
 simply don't print a way bill line. Existing companies get bank details off,
-so no company starts printing an account number it never entered.
+so no company starts printing an account number it never entered. Drivers
+keep whatever joining date they had — the column only stopped being
+required, so new drivers can be added without one.
+
+**`VehicleDocuments` stores the reference, not the file.** The uploaded
+bytes live on disk under `C:\TransTruckWeb\VehicleDocs` (configurable via
+`VehicleDocumentDirectory` in `appsettings.Production.json`). That folder
+must be backed up alongside the database — restoring the database on its own
+leaves rows pointing at files that aren't there. The app degrades quietly if
+that happens (the vehicle reads as having no document, and can be
+re-uploaded) rather than throwing, but the file is still lost.
 
 Two safety notes worth knowing:
 
 - **Automatic pre-upgrade backup.** Before applying a migration to an existing
   database, the API copies it to
-  `C:\TransTruckWeb\DBBackup\pre-upgrade-<timestamp>.db`. This release's
-  upgrade was verified against your real database and produced
-  `pre-upgrade-20260815-135047.db`, with all four companies, five trips,
-  thirty-two cities and six users intact afterwards.
+  `C:\TransTruckWeb\DBBackup\pre-upgrade-<timestamp>.db`. Each of these
+  migrations was applied to the real database during development and the
+  existing companies, trips, cities and users were checked intact
+  afterwards — but check the row counts yourself after upgrading, rather
+  than trusting a number written here, since the data keeps growing.
 - **Rollback.** If anything looks wrong, stop the API, restore that
   `pre-upgrade-*.db` over `C:\TransTruckWeb\DB\TransTruckWeb.db`, and run the
   previous API build. The new columns are additive, so the old build ignores

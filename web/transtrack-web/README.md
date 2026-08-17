@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# LorryOwner — web app
 
-## Getting Started
+The mobile-first front end for LorryOwner. Next.js (App Router) + Tailwind,
+talking to the ASP.NET Core API in [`../../src/TransTrack.Api`](../../src/TransTrack.Api).
 
-First, run the development server:
+> The folder, package and namespace names still say `transtrack` /
+> `transtruck`. That is deliberate: those are internal identifiers, invisible
+> to users, and renaming them would mean moving the live database and secrets
+> folders by hand for no user-facing gain. Only the *branding* is LorryOwner.
+
+## Running it
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Starts on <http://localhost:3000> and expects the API on
+<http://localhost:5034> (see `.env.local`). Start the API separately:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+dotnet run --project ../../src/TransTrack.Api --urls http://localhost:5034
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Checks
 
-## Learn More
+```bash
+npx tsc --noEmit
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Brand assets
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Everything the app serves under `public/` — the app icons, the maskable
+Android icon, the apple-touch-icon, the favicon and the web-sized logo — is
+**generated**, not hand-edited. The sources are the two files in
+[`../../brand`](../../brand):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+| Source | What it is |
+|---|---|
+| `brand/lorryowner-logo.png` | Full horizontal logo: mark + wordmark + tagline |
+| `brand/lorryowner-mark.png` | Just the mark, cropped from the logo |
 
-## Deploy on Vercel
+To change the branding, replace those two files and regenerate:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+node gen-icons.mjs
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Two things that script encodes, worth knowing before you change it:
+
+- **The app icon uses the mark only.** A launcher renders an icon at roughly
+  48px, where the wordmark becomes an unreadable smear. The wordmark still
+  appears on the login screen, which has room for it.
+- **iOS and Android need different files.** iOS ignores SVG for the
+  home-screen icon (it would screenshot the page instead), so
+  `apple-touch-icon.png` must be a real PNG. Android crops the maskable icon
+  to its own shape, so that variant is full-bleed with the art inside the
+  80% safe zone.
+
+If you add a file to `public/` that the offline shell needs, add it to
+`SHELL_URLS` in `public/sw.js` — and only if it certainly exists, because
+`cache.addAll` is all-or-nothing and one 404 fails the whole install.
+
+## Deploying
+
+See [`../../DEPLOYMENT.md`](../../DEPLOYMENT.md). The live deployment goes
+out through Cloudflare Pages; `deploy/frontend-artifacts/` holds the
+ready-to-upload package and its instructions.

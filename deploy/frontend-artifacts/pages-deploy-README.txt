@@ -1,4 +1,4 @@
-TransTrack frontend — Cloudflare Pages upload package
+LorryOwner frontend — Cloudflare Pages upload package
 =======================================================
 
 This zip is laid out for Cloudflare PAGES "Advanced Mode": _worker.js sits
@@ -16,7 +16,7 @@ One-time setup
 ---------------
 1. Cloudflare dashboard -> Workers & Pages -> Create -> Pages ->
    Upload assets.
-2. Project name: transtruck-web (or whatever you like — Pages projects
+2. Project name: lorryowner (or whatever you like — Pages projects
    don't need to match a binding name the way Workers did).
 3. Drag/upload this zip's CONTENTS (not the zip as a nested folder).
 4. After the first deploy, go to the project's Settings -> Functions:

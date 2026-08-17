@@ -23,8 +23,15 @@ those are called out explicitly.
 2. Create the tunnel and route the hostname to it — see
    [`deploy/cloudflared-config.sample.yml`](deploy/cloudflared-config.sample.yml)
    for the exact commands and a ready-made `config.yml` to fill in and save.
-3. Run the tunnel (`cloudflared tunnel run transtruck-api`, or
+3. Run the tunnel (`cloudflared tunnel run <your-tunnel-name>`, or
    `cloudflared service install` to keep it running across reboots).
+
+> **If you set the tunnel up before the LorryOwner rename**, it is still
+> called `transtruck-api` — a tunnel's name is fixed when it's created, and
+> the rebrand did not (and could not) change it. Keep using that name, or
+> create a fresh `lorryowner-api` tunnel and re-point the DNS route. The
+> sample config uses the new name because it's written for a first-time
+> setup.
 
 ### Every deploy after that (build + run)
 ```powershell
@@ -44,6 +51,16 @@ machine-local and never goes in git (this repo is public).
 The database lives at `C:\TransTruckWeb\DB\TransTruckWeb.db`, entirely
 outside the publish folder — republishing (even wiping and recreating
 `C:\TransTruckWeb\publish`) never touches it.
+
+**Uploaded vehicle documents are a second thing to keep.** They live at
+`C:\TransTruckWeb\VehicleDocs` (configurable — see
+`VehicleDocumentDirectory` in `appsettings.Production.json`), because the
+database stores only a *reference* to each file, not the file itself. A
+backup of the database alone therefore restores rows that point at
+documents which are no longer there. **Back up `VehicleDocs` together with
+`DB`.** The app handles the mismatch gracefully rather than erroring — the
+vehicle simply reads as having no document uploaded — but the file is gone
+all the same.
 
 **EnterpriseAdmin's login is unchanged**: username `EnterpriseAdmin`,
 password `SivAyAAn@HMS` — that's a fixed constant in
@@ -136,5 +153,6 @@ HTTPS requests. See the comment above `ForwardedHeadersOptions` in
 |---|---|
 | `appsettings.Production.json` (CORS origin, issuer/audience — no secret) | `C:\TransTruckWeb\secrets\jwt.key` (JWT signing key) |
 | `.env.production` (public API URL) | `C:\TransTruckWeb\DB\TransTruckWeb.db` (live data) |
+| `brand/` (logo artwork sources) | `C:\TransTruckWeb\VehicleDocs\` (uploaded vehicle documents) |
 | `wrangler.jsonc`, `open-next.config.ts` | `C:\TransTruckWeb\publish\` (Release build output) |
 | `deploy/*.ps1`, `deploy/*.sample.yml` | `.open-next/`, `.wrangler/` (frontend build output) |
