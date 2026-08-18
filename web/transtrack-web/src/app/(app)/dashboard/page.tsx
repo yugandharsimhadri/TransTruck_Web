@@ -53,7 +53,7 @@ export default function DashboardPage() {
   const thisMonth = new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
   return (
-    <PageContainer className="space-y-5">
+    <PageContainer className="space-y-3">
       {/* One quiet line of context. The old greeting spent the most valuable
           pixels on a phone telling users their own name. */}
       <div className="flex items-baseline justify-between gap-3">
@@ -62,18 +62,12 @@ export default function DashboardPage() {
       </div>
 
       {/* Anything that needs a decision, first — and absent entirely when
-          there's nothing to decide, so its presence always means something. */}
+          there's nothing to decide, so its presence always means something.
+          Expired documents are not summarised here: the alerts card that
+          follows says the same thing with the detail that makes it
+          actionable, and carrying both cost a third of a phone screen to say
+          it twice. */}
       <div className="space-y-2">
-        {expired.length > 0 && (
-          <AttentionRow
-            tone="danger"
-            icon={AlertTriangle}
-            title={`${expired.length} vehicle ${expired.length === 1 ? "document has" : "documents have"} expired`}
-            detail={`${expired[0].vehicleRegNo} · ${expired[0].documentName}${expired.length > 1 ? ` and ${expired.length - 1} more` : ""}`}
-            href="/masters"
-          />
-        )}
-
         {(s?.pendingApprovals ?? 0) > 0 && (
           <AttentionRow
             tone="warning"
@@ -85,6 +79,32 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* Vehicle document alerts: expired first (needs action now), then
+          expiring soon (worth knowing, not an emergency). Sits up here with
+          the other things needing a decision because it is now the only
+          notice of an expired document — there used to be a summary row
+          above as well, which said the same thing twice and cost a third of
+          a phone screen doing it. */}
+      {alerts.length > 0 && (
+        <Card>
+          <CardContent className="space-y-2 p-3">
+            <p className="text-sm font-medium">Vehicle document alerts</p>
+            {expired.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase text-destructive">Expired</p>
+                {expired.map((a, i) => <AlertRow key={i} alert={a} />)}
+              </div>
+            )}
+            {alerts.length > expired.length && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase text-warning">Expiring soon</p>
+                {alerts.filter((a) => !a.isExpired).map((a, i) => <AlertRow key={i} alert={a} />)}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* The hero figure: money still owed to the company. It's the number a
           fleet owner opens the app to check.
 
@@ -94,7 +114,7 @@ export default function DashboardPage() {
           bug, so each case gets its own wording. */}
       <Link href="/trips" className="block">
         <Card className="transition active:scale-[0.99]">
-          <CardContent className="p-5">
+          <CardContent className="p-4">
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 {s ? (
@@ -147,7 +167,7 @@ export default function DashboardPage() {
       {/* Reference figures, deliberately quieter than everything above. */}
       <Link href="/trips" className="block">
         <Card className="transition active:scale-[0.99]">
-          <CardContent className="flex items-center gap-3 p-4">
+          <CardContent className="flex items-center gap-3 p-3">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
               <Truck className="h-5 w-5" />
             </span>
@@ -161,29 +181,6 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </Link>
-
-      {/* Vehicle document alerts: expired first (needs action now), then
-          expiring soon (worth knowing, not an emergency) — kept below the
-          money since neither is what most visits are for. */}
-      {alerts.length > 0 && (
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <p className="text-sm font-medium">Vehicle document alerts</p>
-            {expired.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase text-destructive">Expired</p>
-                {expired.map((a, i) => <AlertRow key={i} alert={a} />)}
-              </div>
-            )}
-            {alerts.length > expired.length && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase text-warning">Expiring soon</p>
-                {alerts.filter((a) => !a.isExpired).map((a, i) => <AlertRow key={i} alert={a} />)}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {/* The one thing people come here to start. Low on the screen, where a
           thumb naturally rests on a phone. */}
