@@ -55,7 +55,7 @@ export default function EnterprisePage() {
     <div className="min-h-screen bg-muted/40">
       <header className="flex items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
-          <BrandMark className="h-9 w-9" />
+          <BrandMark className="h-11 w-11" />
           <div>
             <p className="font-semibold leading-none">LorryOwner</p>
             <p className="text-xs text-muted-foreground">EnterpriseAdmin</p>

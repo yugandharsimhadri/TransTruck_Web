@@ -150,7 +150,7 @@ export default function LoginPage() {
         <CardHeader className="items-center text-center">
           {/* The full logo already carries the name and the tagline, so no
               separate title line — repeating it would just say it twice. */}
-          <BrandLogo className="h-auto w-56" />
+          <BrandLogo className="h-auto w-72" />
           <CardDescription className="sr-only">LorryOwner — fleet &amp; trip management</CardDescription>
         </CardHeader>
         <CardContent>

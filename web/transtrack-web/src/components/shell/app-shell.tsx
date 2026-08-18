@@ -34,7 +34,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           accent for the active item. */}
       <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground md:flex">
         <div className="flex items-center gap-2.5 px-5 py-5">
-          <BrandMark className="h-10 w-10" />
+          <BrandMark className="h-12 w-12" />
           <div className="min-w-0">
             <p className="font-semibold leading-none">LorryOwner</p>
             <p className="truncate text-xs text-sidebar-foreground/60">{user?.companyName}</p>
@@ -77,7 +77,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {/* Mobile top bar */}
       <header className="flex items-center justify-between border-b bg-background px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
-          <BrandMark className="h-9 w-9" />
+          <BrandMark className="h-11 w-11" />
           <p className="font-semibold leading-none">LorryOwner</p>
         </div>
         <div className="flex items-center gap-1">
