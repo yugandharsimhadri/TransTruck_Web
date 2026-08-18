@@ -47,27 +47,63 @@ public static class AppConfig
 
     public static string FilePath => Path.Combine(AppContext.BaseDirectory, FileName);
 
+    /// <summary>The environment-specific file layered on top of
+    /// <see cref="FileName"/>, e.g. appsettings.Production.json — the same
+    /// base + environment pairing ASP.NET Core itself uses, so a setting put
+    /// in the Production file behaves the way anyone would expect. Without
+    /// this, production storage paths were read from the base file only and
+    /// anything set in the Production file was silently ignored.</summary>
+    public static string? EnvironmentFilePath
+    {
+        get
+        {
+            var environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+            return string.IsNullOrWhiteSpace(environment)
+                ? null
+                : Path.Combine(AppContext.BaseDirectory, $"appsettings.{environment}.json");
+        }
+    }
+
     private static AppSettings? _settings;
 
     public static AppSettings Current => _settings ??= Load();
 
-    /// <summary>Set when the file existed but could not be read, so startup can say so.</summary>
+    /// <summary>Set when a file existed but could not be read, so startup can say so.</summary>
     public static string? LoadError { get; private set; }
+
+    private static readonly JsonSerializerOptions ReadOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
+
+    private static readonly JsonDocumentOptions ParseOptions = new()
+    {
+        CommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true
+    };
 
     private static AppSettings Load()
     {
         try
         {
-            if (!File.Exists(FilePath)) return new AppSettings();
+            var merged = ReadObject(FilePath);
+            var environmentFile = EnvironmentFilePath;
 
-            var json = File.ReadAllText(FilePath);
-
-            return JsonSerializer.Deserialize<AppSettings>(json, new JsonSerializerOptions
+            // Environment file wins, but only for the keys it actually sets —
+            // merged per key rather than per file, so putting one path in
+            // appsettings.Production.json doesn't blank out the rest.
+            if (environmentFile is not null)
             {
-                PropertyNameCaseInsensitive = true,
-                ReadCommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true
-            }) ?? new AppSettings();
+                foreach (var (key, value) in ReadObject(environmentFile))
+                    merged[key] = value;
+            }
+
+            if (merged.Count == 0) return new AppSettings();
+
+            return JsonSerializer.Deserialize<AppSettings>(
+                JsonSerializer.Serialize(merged), ReadOptions) ?? new AppSettings();
         }
         catch (Exception ex)
         {
@@ -76,6 +112,27 @@ public static class AppConfig
             LoadError = $"{FileName} could not be read ({ex.Message}). Built-in defaults are being used.";
             return new AppSettings();
         }
+    }
+
+    /// <summary>The top-level properties of one config file, or nothing when
+    /// it isn't there. Only the keys AppSettings knows about are kept, so the
+    /// framework's own sections (Logging, Jwt, Cors) never reach the
+    /// deserializer.</summary>
+    private static Dictionary<string, JsonElement> ReadObject(string path)
+    {
+        var result = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+        if (!File.Exists(path)) return result;
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path), ParseOptions);
+        if (document.RootElement.ValueKind != JsonValueKind.Object) return result;
+
+        var known = typeof(AppSettings).GetProperties().Select(p => p.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var property in document.RootElement.EnumerateObject())
+            if (known.Contains(property.Name))
+                result[property.Name] = property.Value.Clone();
+
+        return result;
     }
 
     /// <summary>Used by tests to point the application somewhere harmless.</summary>
