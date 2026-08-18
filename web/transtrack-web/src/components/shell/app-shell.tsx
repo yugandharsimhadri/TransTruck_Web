@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const moreNavItemsMatch = (path: string) => moreHrefs.some((href) => path.startsWith(href));
 
   return (
-    <div className="flex min-h-screen flex-col bg-muted/40 md:flex-row">
+    <div className="flex min-h-dvh flex-col bg-muted/40 md:flex-row">
       {/* Desktop sidebar — a soft blue-tinted rail like Apple Mail/Notes:
           light in light mode, dark in dark mode, always with the blue
           accent for the active item. */}

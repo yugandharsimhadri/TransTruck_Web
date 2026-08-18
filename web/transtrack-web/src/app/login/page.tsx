@@ -135,7 +135,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-accent/60 via-background to-background p-4">
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-b from-accent/60 via-background to-background p-4">
       <div className="absolute top-3 right-3">
         <ThemeToggle />
       </div>

@@ -52,7 +52,7 @@ export default function EnterprisePage() {
   }
 
   return (
-    <div className="min-h-screen bg-muted/40">
+    <div className="min-h-dvh bg-muted/40">
       <header className="flex items-center justify-between border-b bg-background px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2">
           <BrandMark className="h-11 w-11" />
