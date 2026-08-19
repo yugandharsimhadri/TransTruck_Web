@@ -18,9 +18,19 @@ const logo = `${BRAND}/lorryowner-logo.png`;
 const NAVY = '#1E3A8A';
 const WHITE = '#ffffff';
 
-/** The mark centred on a square, with breathing room round it. */
-async function square(size, { inset = 0.78, background = WHITE } = {}) {
+/** The mark, trimmed of its transparent margin and centred on a square.
+ *
+ * The trim matters: the source art carries a wide transparent border, and
+ * fitting that whole canvas into the tile left the lorry floating small in
+ * the middle with a ring of dead space. Trimming to the ink first means
+ * `inset` measures the artwork itself, so the mark actually fills the icon.
+ *
+ * Backgrounds are painted rather than left transparent — a launcher that
+ * composites a transparent icon onto a dark wallpaper turns the lorry's dark
+ * outlines into mud, and Android's maskable slot requires opaque corners. */
+async function square(size, { inset = 0.86, background = WHITE } = {}) {
   const art = await sharp(mark)
+    .trim()
     .resize({ width: Math.round(size * inset), height: Math.round(size * inset), fit: 'inside' })
     .toBuffer();
   const { width, height } = await sharp(art).metadata();
@@ -40,18 +50,18 @@ for (const [name, size] of Object.entries({
   'favicon-32.png': 32,
 })) {
   // The favicon is tiny, so the mark gets nearly the whole tile or it turns to mush.
-  await sharp(await square(size, { inset: 0.94 })).toFile(`public/${name}`);
+  await sharp(await square(size, { inset: 0.86 })).toFile(`public/${name}`);
 }
 
 // Maskable: Android crops to its own shape (circle, squircle, ...), so the art
 // must sit inside the 80% safe zone and the background must bleed to the edge.
-await sharp(await square(512, { inset: 0.74 })).toFile('public/icon-maskable-512.png');
+await sharp(await square(512, { inset: 0.68 })).toFile('public/icon-maskable-512.png');
 
 // Web copies of the artwork itself. The originals are ~1.2 MB, which is real
 // money on a phone connection — these are the sizes actually displayed.
-await sharp(logo).resize({ width: 900 }).png({ quality: 90, compressionLevel: 9 })
+await sharp(logo).trim().resize({ width: 900 }).png({ quality: 90, compressionLevel: 9 })
   .toFile('public/lorryowner-logo.png');
-await sharp(mark).resize({ width: 320 }).png({ quality: 90, compressionLevel: 9 })
+await sharp(mark).trim().resize({ width: 320 }).png({ quality: 90, compressionLevel: 9 })
   .toFile('public/lorryowner-mark.png');
 
 console.log('Brand assets written to public/');

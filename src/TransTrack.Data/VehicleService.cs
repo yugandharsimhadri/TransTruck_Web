@@ -12,7 +12,10 @@ public class VehicleService(IDbContextFactory<AppDbContext> factory)
             .Where(v => !v.IsDeleted).OrderBy(v => v.RegNo).ToListAsync();
     }
 
-    public async Task SaveVehicleAsync(Vehicle vehicle)
+    /// <summary>Returns the saved vehicle's id — the caller needs it for a
+    /// newly created vehicle, since its document is stored against that id and
+    /// there is nothing to attach one to until the row exists.</summary>
+    public async Task<Guid> SaveVehicleAsync(Vehicle vehicle)
     {
         if (vehicle.Ownership == VehicleOwnership.Other && vehicle.OwnerId is null)
             throw new InvalidOperationException("An other-owner vehicle needs an owner.");
@@ -41,6 +44,7 @@ public class VehicleService(IDbContextFactory<AppDbContext> factory)
 
         if (isNew) db.Vehicles.Add(entity);
         await db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public async Task DeleteVehicleAsync(Guid id)

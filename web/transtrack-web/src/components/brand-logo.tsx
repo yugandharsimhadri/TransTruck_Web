@@ -6,10 +6,11 @@
  *
  * - <BrandLogo> — the full horizontal logo, mark plus wordmark. Needs room,
  *   so it's used where there is some: the login and registration screens.
- * - <BrandMark> — just the mark, on a white tile. The artwork has a white
- *   background (the lorry's cab is white, so the background can't simply be
- *   keyed out), and the app shell is dark — so rather than fight that, the
- *   white is made deliberate: a rounded tile that reads as a badge.
+ * - <BrandMark> — just the mark. The artwork is transparent, so it sits
+ *   directly on whatever surface it lands on, light or dark, with no tile
+ *   behind it. (It used to need a white tile: the earlier art had a baked-in
+ *   white background that could not be keyed out, since the lorry's cab is
+ *   white too.)
  *
  * Both are plain <img> rather than next/image: these are fixed-size, already
  * optimised by gen-icons.mjs, and served from the same origin, so the loader
@@ -29,10 +30,11 @@ export function BrandLogo({ className }: { className?: string }) {
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <span
-      className={`flex items-center justify-center overflow-hidden rounded-2xl bg-white ${className ?? ""}`}
-    >
-      <img src="/lorryowner-mark.png" alt="" aria-hidden="true" className="h-full w-full object-contain p-1" />
-    </span>
+    <img
+      src="/lorryowner-mark.png"
+      alt=""
+      aria-hidden="true"
+      className={`shrink-0 object-contain ${className ?? ""}`}
+    />
   );
 }

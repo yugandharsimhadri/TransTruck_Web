@@ -18,8 +18,9 @@ public class VehiclesController(VehicleService vehicles, VehicleDocumentService 
     {
         try
         {
-            await vehicles.SaveVehicleAsync(vehicle);
-            return Ok();
+            // The id comes back so the form can stay open on a newly created
+            // vehicle and offer its document upload straight away.
+            return Ok(await vehicles.SaveVehicleAsync(vehicle));
         }
         catch (InvalidOperationException ex)
         {

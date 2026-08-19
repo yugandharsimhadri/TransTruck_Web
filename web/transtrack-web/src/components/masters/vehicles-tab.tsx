@@ -108,6 +108,17 @@ export function VehiclesTab() {
         vehicle={editing}
         onClose={() => setEditing(null)}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["vehicles"] })}
+        onSavedNew={async (id) => {
+          // Refetch first, then point the dialog at the real saved row, so the
+          // form is editing the vehicle that now exists rather than "new".
+          const list = await queryClient.fetchQuery({
+            queryKey: ["vehicles"],
+            queryFn: () => api.get<Vehicle[]>("/api/vehicles"),
+          });
+
+          const saved = list.find((v) => v.id === id);
+          if (saved) setEditing(saved);
+        }}
       />
     </div>
   );
@@ -117,10 +128,15 @@ function VehicleDialog({
   vehicle,
   onClose,
   onSaved,
+  onSavedNew,
 }: {
   vehicle: Vehicle | "new" | null;
   onClose: () => void;
   onSaved: () => void;
+  /** Hands the parent the id of a just-created vehicle so it can keep the
+   *  dialog open on it, which is what makes the document upload reachable
+   *  without closing and reopening the form. */
+  onSavedNew: (id: string) => void;
 }) {
   const isNew = vehicle === "new";
   const existing = isNew ? null : vehicle;
@@ -168,7 +184,7 @@ function VehicleDialog({
         ownerId = result;
       }
 
-      await api.post("/api/vehicles", {
+      return await api.post<string>("/api/vehicles", {
         id: existing?.id ?? "00000000-0000-0000-0000-000000000000",
         regNo,
         ownership,
@@ -183,9 +199,21 @@ function VehicleDialog({
         isActive: existing?.isActive ?? true,
       });
     },
-    onSuccess: () => {
-      toast.success("Vehicle saved.");
+    onSuccess: (savedId) => {
       onSaved();
+
+      // A document is stored against a vehicle id, so on a brand-new vehicle
+      // there was nothing to attach one to and the upload simply wasn't drawn
+      // — which read as the feature being missing rather than not-yet-possible.
+      // Now the newly saved vehicle takes over the open dialog, so its upload
+      // appears straight away instead of forcing a save-close-reopen round trip.
+      if (isNew && savedId) {
+        toast.success("Vehicle saved — you can attach its document now.");
+        onSavedNew(savedId);
+        return;
+      }
+
+      toast.success("Vehicle saved.");
       onClose();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong."),
