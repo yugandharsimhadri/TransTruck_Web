@@ -147,7 +147,10 @@ function StateDialog({
     <Dialog open={state !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isNew ? "Add state" : `Edit ${existing?.name}`}</DialogTitle>
+          {/* The null case is not dead: closing sets the value to null while
+              the content is still mounted for the close animation, so without a
+              fallback the title renders "Edit undefined" on the way out. */}
+          <DialogTitle>{isNew ? "Add state" : existing ? `Edit ${existing.name}` : "Edit state"}</DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}>
           <div className="space-y-2">
@@ -228,7 +231,7 @@ function CityDialog({
     <Dialog open={city !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isNew ? "Add city" : `Edit ${existing?.name}`}</DialogTitle>
+          <DialogTitle>{isNew ? "Add city" : existing ? `Edit ${existing.name}` : "Edit city"}</DialogTitle>
         </DialogHeader>
         <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(); }}>
           <div className="space-y-2">

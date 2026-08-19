@@ -195,7 +195,10 @@ function VehicleDialog({
     <Dialog open={vehicle !== null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isNew ? "Add vehicle" : `Edit ${existing?.regNo}`}</DialogTitle>
+          {/* The null case is not dead: closing sets the value to null while
+              the content is still mounted for the close animation, so without a
+              fallback the title renders "Edit undefined" on the way out. */}
+          <DialogTitle>{isNew ? "Add vehicle" : existing ? `Edit ${existing.regNo}` : "Edit vehicle"}</DialogTitle>
         </DialogHeader>
         <form
           className="space-y-4"
