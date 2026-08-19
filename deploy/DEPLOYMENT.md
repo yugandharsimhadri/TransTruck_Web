@@ -9,7 +9,7 @@ There is no CI/CD: both halves are built locally and deployed by hand.
 
 > **Names in paths and code still say TransTrack / TransTruck.** That is
 > deliberate. The rebrand changed what users see — the app name, logo, icons
-> and the `lorryowner.com` / `api.lorryowner.com` domains — and left internal
+> and the `lorryowner.com` / `loapi.lorryowner.com` domains — and left internal
 > identifiers alone: the `src/TransTrack.*` projects, the
 > `C:\TransTruckWeb` data folder, the `TRANSTRUCKWEB_*` environment
 > variables, and the JWT issuer/audience. Renaming those would mean moving
@@ -90,7 +90,7 @@ Deploy:
 ```
 
 That runs it in Production on `http://localhost:6041`, which the Cloudflare
-Tunnel exposes as `api.lorryowner.com`. On startup it backs up,
+Tunnel exposes as `loapi.lorryowner.com`. On startup it backs up,
 migrates, then serves.
 
 **Do not delete `C:\TransTruckWeb\secrets\jwt.key`.** Every signed-in session

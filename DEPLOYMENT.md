@@ -3,7 +3,7 @@
 Two independent pieces, deployed separately:
 
 - **API** (`src/TransTrack.Api`) — runs on your local server, port **6041**,
-  exposed publicly as `https://api.lorryowner.com` through a
+  exposed publicly as `https://loapi.lorryowner.com` through a
   Cloudflare Tunnel.
 - **Web app** (`web/transtrack-web`) — deployed to Cloudflare Workers as
   `https://lorryowner.com`.
@@ -29,7 +29,7 @@ those are called out explicitly.
 > **If you set the tunnel up before the LorryOwner rename**, it is still
 > called `transtruck-api` — a tunnel's name is fixed when it's created, and
 > the rebrand did not (and could not) change it. Keep using that name, or
-> create a fresh `lorryowner-api` tunnel and re-point the DNS route. The
+> create a fresh `sivayaan-local-server` tunnel and re-point the DNS route. The
 > sample config uses the new name because it's written for a first-time
 > setup.
 
@@ -102,11 +102,11 @@ pushes it live — and because
 attaches automatically on that same deploy; no dashboard click needed
 (lorryowner.com already has to be an active zone in your
 Cloudflare account for this to work — it already is, since it's serving
-`api.lorryowner.com` via the tunnel).
+`loapi.lorryowner.com` via the tunnel).
 
 The API's URL is baked in at
 [`.env.production`](web/transtrack-web/.env.production)
-(`NEXT_PUBLIC_API_URL=https://api.lorryowner.com`) — committed
+(`NEXT_PUBLIC_API_URL=https://loapi.lorryowner.com`) — committed
 to the repo since it's a public URL, not a secret, so no dashboard
 environment variable needs setting either.
 
@@ -128,7 +128,7 @@ Cloudflare setup touches ordinary local development.
 
 ## Cross-origin auth, and why nothing needed to change there
 
-`lorryowner.com` and `api.lorryowner.com`
+`lorryowner.com` and `loapi.lorryowner.com`
 are different *subdomains* but the same *registrable domain*
 (`lorryowner.com`), and both are HTTPS. For the `SameSite` cookie
 rules that matters — subdomains of the same registrable domain count as
