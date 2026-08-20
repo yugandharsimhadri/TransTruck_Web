@@ -324,7 +324,12 @@ function VehicleDocumentSection({ vehicleId }: { vehicleId: string }) {
 
   const docQuery = useQuery({
     queryKey: ["vehicle-document", vehicleId],
-    queryFn: () => api.get<VehicleDocumentInfo | null>(`/api/vehicles/${vehicleId}/document`),
+    // "No document yet" comes back as 204 No Content, which api.get surfaces
+    // as undefined — and TanStack Query treats undefined as a failed query
+    // rather than a value. Coerced to null so the ordinary empty case stays a
+    // successful result and renders its own message.
+    queryFn: async () =>
+      (await api.get<VehicleDocumentInfo | null>(`/api/vehicles/${vehicleId}/document`)) ?? null,
   });
 
   const doc = docQuery.data;
