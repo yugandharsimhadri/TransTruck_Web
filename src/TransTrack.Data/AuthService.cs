@@ -28,9 +28,15 @@ public record LoginResult(LoginOutcome Outcome, User? User, string? Message)
     public static LoginResult LicenseExpired(string message) => new(LoginOutcome.LicenseExpired, null, message);
 }
 
-/// <summary>Sign-in, password changes, and the user list Owner manages.</summary>
-public class AuthService(IDbContextFactory<AppDbContext> factory)
+/// <summary>Sign-in, password changes, and the user list Owner manages.
+///
+/// The current-user context is optional so the login paths — which run before
+/// anyone is signed in — and the existing tests keep working unchanged; it is
+/// only consulted when deciding who may manage whom.</summary>
+public class AuthService(IDbContextFactory<AppDbContext> factory, ICurrentUserContext? currentUser = null)
 {
+    private readonly ICurrentUserContext _currentUser = currentUser ?? new NullCurrentUserContext();
+
     /// <summary>
     /// The support/recovery identity for the company's own IT team — never a
     /// row in the Users table, a constant checked directly here, so it can
@@ -123,6 +129,23 @@ public class AuthService(IDbContextFactory<AppDbContext> factory)
 
         var entity = user.Id == Guid.Empty ? null : await db.Users.FirstOrDefaultAsync(u => u.Id == user.Id);
         var isNew = entity is null;
+
+        await EnsureCallerMayManageAsync(db, existingRole: entity?.Role, newRole: user.Role);
+
+        // Losing the last Owner would leave nobody able to approve amounts or
+        // cancel a trip, and no way back in without EnterpriseAdmin — so a
+        // demotion or deactivation that empties the role is refused rather
+        // than discovered later.
+        if (!isNew && entity!.Role == UserRole.Owner && (user.Role != UserRole.Owner || !user.IsActive))
+        {
+            var otherActiveOwners = await db.Users.CountAsync(
+                u => u.Id != entity.Id && u.Role == UserRole.Owner && u.IsActive && !u.IsDeleted);
+
+            if (otherActiveOwners == 0)
+                throw new InvalidOperationException(
+                    "This is the only active Owner. Make someone else an Owner first.");
+        }
+
         entity ??= new User();
 
         entity.Username = username;
@@ -144,6 +167,46 @@ public class AuthService(IDbContextFactory<AppDbContext> factory)
         if (isNew) db.Users.Add(entity);
 
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Enforces the role hierarchy on every create and edit: nobody may act on
+    /// a user who outranks them, and nobody may hand out a role above their
+    /// own. Both halves matter — checking only the new role would let a
+    /// CoOwner edit an Owner "down" to CoOwner, and checking only the existing
+    /// role would let them promote an Accountant straight to Owner.
+    ///
+    /// The caller's role is read from the database rather than taken from
+    /// their token, so a session issued before a demotion carries no authority
+    /// it no longer has.
+    /// </summary>
+    private async Task EnsureCallerMayManageAsync(AppDbContext db, UserRole? existingRole, UserRole newRole)
+    {
+        if (_currentUser.UserId is not { } callerId) return; // No session: onboarding/registration paths.
+
+        var callerRole = await db.Users.IgnoreQueryFilters()
+            .Where(u => u.Id == callerId && !u.IsDeleted)
+            .Select(u => (UserRole?)u.Role)
+            .FirstOrDefaultAsync();
+
+        if (callerRole is not { } caller) return; // EnterpriseAdmin is not a Users row.
+
+        if (existingRole is { } current && !caller.CanManage(current))
+            throw new InvalidOperationException($"{Describe(caller, capitalised: true)} cannot change {Describe(current)}.");
+
+        if (!caller.CanManage(newRole))
+            throw new InvalidOperationException($"{Describe(caller, capitalised: true)} cannot create or assign the {Name(newRole)} role.");
+    }
+
+    private static string Name(UserRole role) => role == UserRole.CoOwner ? "Co-owner" : role.ToString();
+
+    /// <summary>"an Accountant" / "An Owner" — the article has to follow the
+    /// word, since "a Accountant" reads as a bug in its own right.</summary>
+    private static string Describe(UserRole role, bool capitalised = false)
+    {
+        var name = Name(role);
+        var article = "AEIOU".Contains(name[0]) ? "an" : "a";
+        return $"{(capitalised ? char.ToUpperInvariant(article[0]) + article[1..] : article)} {name}";
     }
 
     /// <summary>The signed-in user setting their own new password, typically

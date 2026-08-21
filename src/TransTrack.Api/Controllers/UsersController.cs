@@ -33,8 +33,12 @@ public class UsersController(AuthService auth) : ControllerBase
     /// (role/name/active, and optionally resets their password — setting
     /// NewPassword also forces MustChangePassword, same as EnterpriseAdmin's
     /// reset).</summary>
+    /// <remarks>Deliberately not gated to Owner/CoOwner here. Who may act on
+    /// whom is decided by the role hierarchy in AuthService.SaveUserAsync,
+    /// which reads the caller's current role from the database — a blanket
+    /// policy on this method could only express "may manage users at all",
+    /// and previously let a CoOwner create an Owner.</remarks>
     [HttpPost]
-    [Authorize(Policy = Policies.ManageSettings)]
     public async Task<IActionResult> Save(SaveUserRequest request)
     {
         try

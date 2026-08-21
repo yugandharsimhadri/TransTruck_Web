@@ -23,25 +23,32 @@ import { api, ApiError } from "@/lib/api";
 import type { Company, UserSummary, UserRole } from "@/lib/types";
 import { Plus, Building2, ImagePlus } from "lucide-react";
 import { RequireRole } from "@/components/require-role";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function SettingsPage() {
+  // Accountants are allowed in so they can manage their own peers, but only
+  // the Users tab — the company's letterhead and bank details stay with the
+  // Owner and Co-owner.
   return (
-    <RequireRole roles={["Owner", "CoOwner"]}>
+    <RequireRole roles={["Owner", "CoOwner", "Accountant"]}>
       <SettingsScreen />
     </RequireRole>
   );
 }
 
 function SettingsScreen() {
+  const { user } = useAuth();
+  const canManageCompany = user?.role === "Owner" || user?.role === "CoOwner";
+
   return (
     <PageContainer className="space-y-4">
       <h1 className="text-xl font-semibold">Settings</h1>
-      <Tabs defaultValue="company">
+      <Tabs defaultValue={canManageCompany ? "company" : "users"}>
         <TabsList>
-          <TabsTrigger value="company">Company</TabsTrigger>
+          {canManageCompany && <TabsTrigger value="company">Company</TabsTrigger>}
           <TabsTrigger value="users">Users</TabsTrigger>
         </TabsList>
-        <TabsContent value="company"><CompanyTab /></TabsContent>
+        {canManageCompany && <TabsContent value="company"><CompanyTab /></TabsContent>}
         <TabsContent value="users"><UsersTab /></TabsContent>
       </Tabs>
     </PageContainer>
@@ -251,11 +258,24 @@ function CompanyTab() {
   );
 }
 
+/// Roles are ranked by authority, and nobody may create or edit above their
+/// own level: an Owner manages everyone, a Co-owner manages Co-owners and
+/// Accountants, an Accountant only other Accountants. The API enforces this
+/// too (AuthService.SaveUserAsync) — this just avoids offering a choice that
+/// would be refused.
+const ROLE_RANK: Record<UserRole, number> = { Owner: 1, CoOwner: 2, Accountant: 3 };
+
+function canManage(actor: UserRole | undefined, target: UserRole): boolean {
+  return actor !== undefined && ROLE_RANK[actor] <= ROLE_RANK[target];
+}
+
 function UsersTab() {
   const queryClient = useQueryClient();
+  const { user: signedIn } = useAuth();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<UserSummary | null>(null);
 
+  const myRole = signedIn?.role as UserRole | undefined;
   const usersQuery = useQuery({ queryKey: ["users"], queryFn: () => api.get<UserSummary[]>("/api/users") });
 
   return (
@@ -279,17 +299,30 @@ function UsersTab() {
       </div>
 
       <div className="space-y-2">
-        {usersQuery.data?.map((u) => (
-          <Card key={u.id} className="cursor-pointer transition hover:shadow-sm" onClick={() => setEditing(u)}>
-            <CardContent className="flex items-center justify-between p-4">
-              <div>
-                <p className="font-medium">{u.displayName}</p>
-                <p className="text-sm text-muted-foreground">{u.username} · {u.role}</p>
-              </div>
-              <Badge variant={u.isActive ? "success" : "secondary"}>{u.isActive ? "Active" : "Inactive"}</Badge>
-            </CardContent>
-          </Card>
-        ))}
+        {usersQuery.data?.map((u) => {
+          // Someone above your level is shown but not editable — hiding them
+          // would make the team list look wrong, and opening a form that can
+          // only fail is worse than a row that plainly doesn't respond.
+          const editable = canManage(myRole, u.role);
+          return (
+            <Card
+              key={u.id}
+              className={editable ? "cursor-pointer transition hover:shadow-sm" : "opacity-60"}
+              onClick={editable ? () => setEditing(u) : undefined}
+            >
+              <CardContent className="flex items-center justify-between p-4">
+                <div>
+                  <p className="font-medium">{u.displayName}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {u.username} · {u.role}
+                    {!editable && " · view only"}
+                  </p>
+                </div>
+                <Badge variant={u.isActive ? "success" : "secondary"}>{u.isActive ? "Active" : "Inactive"}</Badge>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Sheet open={editing !== null} onOpenChange={(o) => !o && setEditing(null)}>
@@ -309,6 +342,15 @@ function UsersTab() {
 }
 
 function UserForm({ user, onSaved }: { user: UserSummary | null; onSaved: () => void }) {
+  const { user: signedIn } = useAuth();
+  const myRole = signedIn?.role as UserRole | undefined;
+
+  // Only the roles this person is allowed to hand out. A Co-owner never sees
+  // "Owner" in the list, so the refusal never has to happen.
+  const assignableRoles = (["Owner", "CoOwner", "Accountant"] as UserRole[]).filter((r) =>
+    canManage(myRole, r),
+  );
+
   const isNew = user === null;
   const [username, setUsername] = useState(user?.username ?? "");
   const [displayName, setDisplayName] = useState(user?.displayName ?? "");
@@ -366,9 +408,11 @@ function UserForm({ user, onSaved }: { user: UserSummary | null; onSaved: () => 
             <SelectValue>{(v: UserRole) => v}</SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Owner">Owner</SelectItem>
-            <SelectItem value="CoOwner">Co-owner</SelectItem>
-            <SelectItem value="Accountant">Accountant</SelectItem>
+            {assignableRoles.map((r) => (
+              <SelectItem key={r} value={r}>
+                {r === "CoOwner" ? "Co-owner" : r}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

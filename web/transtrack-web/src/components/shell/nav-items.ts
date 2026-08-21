@@ -46,7 +46,7 @@ export const moreNavItems: NavItem[] = [
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/masters", label: "Masters", icon: Database },
   { href: "/activity", label: "Activity", icon: History, roles: ["Owner", "CoOwner"] },
-  { href: "/settings", label: "Settings", icon: Settings, roles: ["Owner", "CoOwner"] },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export const moreTabItem: NavItem = { href: "/more", label: "More", icon: MoreHorizontal };
