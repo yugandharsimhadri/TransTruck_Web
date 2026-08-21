@@ -10,6 +10,7 @@ import { api, ApiError } from "@/lib/api";
 import { useAuth } from "@/contexts/auth-context";
 import type { LoginResponse } from "@/lib/types";
 import { BrandLogo } from "@/components/brand-logo";
+import { InstallAppCard } from "@/components/install-app-card";
 import { TruckDrive } from "@/components/truck-drive";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -135,7 +136,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-gradient-to-b from-accent/60 via-background to-background p-4">
+    // flex-col matters: the install card below is a sibling of the sign-in
+    // card, and in the default row direction it sat *beside* it, squeezed to
+    // half a phone screen. Stacking keeps both centred as before.
+    <div className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-accent/60 via-background to-background p-4">
       <div className="absolute top-3 right-3">
         <ThemeToggle />
       </div>
@@ -300,6 +304,11 @@ export default function LoginPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Renders itself only when there is a real install to offer — see
+          InstallAppCard. Placed after the card rather than as a popup, so it
+          never gets between someone and signing in. */}
+      <InstallAppCard />
     </div>
   );
 }

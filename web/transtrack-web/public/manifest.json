@@ -3,7 +3,11 @@
   "short_name": "LorryOwner",
   "description": "Drive · Manage · Grow",
   "start_url": "/dashboard",
+  "scope": "/",
+  "id": "/",
   "display": "standalone",
+  "orientation": "portrait-primary",
+  "categories": ["business", "productivity"],
   "background_color": "#ffffff",
   "theme_color": "#1E3A8A",
   "icons": [
