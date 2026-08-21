@@ -135,24 +135,35 @@ public class Vehicle : BaseEntity, ITenantEntity
         upto.HasValue && upto.Value.Date >= DateTime.Today && upto.Value.Date <= DateTime.Today.AddDays(withinDays);
 }
 
-/// <summary>The single document held against a vehicle (RC book, permit scan,
-/// insurance copy — whatever the company keeps). Deliberately its own table
-/// rather than columns on <see cref="Vehicle"/>: it is written once in a while
-/// from Settings and read only when someone asks for it, so keeping it out of
-/// the vehicle row means no list, trip or dashboard query can ever drag a
-/// multi-megabyte file along with it.
+/// <summary>An uploaded document belonging to a vehicle or a driver — a
+/// permit scan, an insurance copy, an Aadhaar card. Deliberately its own table
+/// rather than columns on <see cref="Vehicle"/> or <see cref="Driver"/>: these
+/// are written once in a while and read only when someone asks for one, so
+/// keeping them out of those rows means no list, trip or dashboard query can
+/// ever drag a multi-megabyte file along with it.
+///
+/// Owner is a (kind, id) pair rather than two nullable foreign keys, so adding
+/// party or trip documents later needs no schema change — and no row can
+/// accidentally belong to a vehicle *and* a driver at once, which two nullable
+/// columns would happily allow.
 ///
 /// Only the *reference* lives here — the bytes sit on disk (see
-/// VehicleDocumentStorage). <see cref="StoredPath"/> is deliberately a plain
-/// string rather than anything filesystem-specific, so moving to cloud object
-/// storage later means swapping the storage implementation and putting an
-/// object key in this same column, with no schema change.</summary>
-public class VehicleDocument : BaseEntity, ITenantEntity
+/// DocumentStorage). <see cref="StoredPath"/> is deliberately a plain string
+/// rather than anything filesystem-specific, so moving to cloud object storage
+/// later means swapping the storage implementation and putting an object key
+/// in this same column.</summary>
+public class StoredDocument : BaseEntity, ITenantEntity
 {
     public Guid CompanyId { get; set; }
 
-    public Guid VehicleId { get; set; }
-    public Vehicle Vehicle { get; set; } = null!;
+    public DocumentOwnerKind OwnerKind { get; set; }
+
+    /// <summary>The vehicle's or driver's id. Not a foreign key: it points at
+    /// one of two tables depending on <see cref="OwnerKind"/>, and the app
+    /// only ever reaches documents through their owner anyway.</summary>
+    public Guid OwnerId { get; set; }
+
+    public DocumentType DocumentType { get; set; } = DocumentType.Others;
 
     /// <summary>The name the user's file had when they uploaded it — what the
     /// download is named, so it arrives recognisable.</summary>

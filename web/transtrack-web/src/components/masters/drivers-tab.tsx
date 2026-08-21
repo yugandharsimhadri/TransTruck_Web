@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
-import type { Driver } from "@/lib/types";
+import { DocumentPanel } from "@/components/masters/document-panel";
+import { DRIVER_DOCUMENT_TYPES, type Driver } from "@/lib/types";
 import { Plus, Pencil } from "lucide-react";
 
 export function DriversTab() {
@@ -175,6 +176,16 @@ function DriverDialog({
             <Label htmlFor="joiningDate">Joining date (optional)</Label>
             <Input id="joiningDate" type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
           </div>
+          {/* Documents hang off a saved driver, same as vehicles. */}
+          {existing && (
+            <DocumentPanel
+              ownerPath="drivers"
+              ownerId={existing.id}
+              types={DRIVER_DOCUMENT_TYPES}
+              emptyText="No documents uploaded for this driver yet."
+            />
+          )}
+
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>
             <Button type="submit" disabled={mutation.isPending} className="w-full">

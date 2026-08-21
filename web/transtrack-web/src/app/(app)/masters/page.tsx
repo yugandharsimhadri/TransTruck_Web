@@ -10,7 +10,7 @@ import { PageContainer } from "@/components/shell/page-container";
 export default function MastersPage() {
   return (
     <PageContainer className="space-y-4">
-      <h1 className="text-xl font-semibold">Masters</h1>
+      <h1 className="text-xl font-semibold">Vehicles &amp; Contacts</h1>
 
       <Tabs defaultValue="vehicles">
         <TabsList>

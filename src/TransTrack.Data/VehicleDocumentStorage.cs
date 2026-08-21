@@ -1,18 +1,21 @@
+using TransTrack.Core;
+
 namespace TransTrack.Data;
 
 /// <summary>
-/// Where an uploaded vehicle document's bytes actually live. Everything the
-/// rest of the app does with a document goes through this interface and a
-/// plain string reference, never a file path it built itself — so moving to
-/// cloud object storage later is a new implementation of this one interface
-/// plus a DI line, with no change to the entity, the service, the controller
-/// or the database.
+/// Where an uploaded document's bytes actually live. Everything the rest of
+/// the app does with a document goes through this interface and a plain string
+/// reference, never a file path it built itself — so moving to cloud object
+/// storage later is a new implementation of this one interface plus a DI line,
+/// with no change to the entity, the service, the controller or the database.
 /// </summary>
-public interface IVehicleDocumentStorage
+public interface IDocumentStorage
 {
     /// <summary>Stores the bytes and returns the reference to keep on the
-    /// record. Replaces whatever was previously at that reference.</summary>
-    Task<string> SaveAsync(Guid companyId, Guid vehicleId, string fileName, Stream content, CancellationToken ct = default);
+    /// record. Each document gets its own name, so uploading a second one for
+    /// the same owner never overwrites the first.</summary>
+    Task<string> SaveAsync(Guid companyId, DocumentOwnerKind ownerKind, Guid ownerId, Guid documentId,
+        string fileName, Stream content, CancellationToken ct = default);
 
     /// <summary>Opens a stored document, or null when the bytes are missing —
     /// deliberately not an exception: a record whose file was moved, deleted
@@ -28,13 +31,15 @@ public interface IVehicleDocumentStorage
 /// <summary>
 /// Local disk implementation — the deployment this runs on today. Files are
 /// laid out per company so one company's uploads are never interleaved with
-/// another's on disk, which keeps a manual copy/restore of a single tenant
+/// another's on disk, which keeps a manual copy or restore of a single tenant
 /// straightforward.
 /// </summary>
-public class FileSystemVehicleDocumentStorage : IVehicleDocumentStorage
+public class FileSystemDocumentStorage : IDocumentStorage
 {
     /// <summary>Set TRANSTRUCKWEB_VEHICLEDOCS to point tests somewhere
-    /// harmless, matching how the database and backup paths are overridden.</summary>
+    /// harmless, matching how the database and backup paths are overridden.
+    /// Name kept from when this only held vehicle documents — renaming it
+    /// would silently ignore the value on any machine already setting it.</summary>
     public const string DirectoryOverrideVariable = "TRANSTRUCKWEB_VEHICLEDOCS";
 
     public static string RootDirectory
@@ -53,17 +58,21 @@ public class FileSystemVehicleDocumentStorage : IVehicleDocumentStorage
         }
     }
 
-    public async Task<string> SaveAsync(Guid companyId, Guid vehicleId, string fileName, Stream content, CancellationToken ct = default)
+    public async Task<string> SaveAsync(Guid companyId, DocumentOwnerKind ownerKind, Guid ownerId, Guid documentId,
+        string fileName, Stream content, CancellationToken ct = default)
     {
-        var companyDir = Path.Combine(RootDirectory, companyId.ToString("N"));
-        Directory.CreateDirectory(companyDir);
+        // company / kind / owner — so one vehicle's papers sit together, and a
+        // company's whole set can still be copied as a unit.
+        var folder = Path.Combine(RootDirectory, companyId.ToString("N"),
+            ownerKind.ToString().ToLowerInvariant(), ownerId.ToString("N"));
+        Directory.CreateDirectory(folder);
 
-        // Named by vehicle id, not by the user's filename: one document per
-        // vehicle, so a re-upload overwrites cleanly, and a hostile or merely
-        // awkward filename can never escape the folder or collide.
+        // Named by document id, not by the user's filename: several documents
+        // now live under one owner, and an awkward or hostile filename can
+        // never collide with another or escape the folder.
         var extension = Path.GetExtension(fileName);
         if (extension.Length > 10) extension = string.Empty;
-        var path = Path.Combine(companyDir, $"{vehicleId:N}{extension}");
+        var path = Path.Combine(folder, $"{documentId:N}{extension}");
 
         await using (var file = File.Create(path))
             await content.CopyToAsync(file, ct);

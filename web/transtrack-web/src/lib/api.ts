@@ -76,9 +76,15 @@ async function requestFile(path: string, fallbackName: string): Promise<File> {
  * third and costs a phone real memory. Content-Type is left unset on purpose
  * so the browser adds the multipart boundary itself.
  */
-async function uploadFile<T>(path: string, file: File, field = "file"): Promise<T> {
+async function uploadFile<T>(
+  path: string,
+  file: File,
+  fields: Record<string, string> = {},
+  field = "file",
+): Promise<T> {
   const body = new FormData();
   body.append(field, file);
+  for (const [key, value] of Object.entries(fields)) body.append(key, value);
 
   const res = await fetch(`${API_URL}${path}`, { method: "POST", credentials: "include", body });
 

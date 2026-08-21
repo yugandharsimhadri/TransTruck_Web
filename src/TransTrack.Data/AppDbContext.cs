@@ -36,7 +36,7 @@ public class AppDbContext : DbContext
     public DbSet<Party> Parties => Set<Party>();
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
-    public DbSet<VehicleDocument> VehicleDocuments => Set<VehicleDocument>();
+    public DbSet<StoredDocument> Documents => Set<StoredDocument>();
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
     public DbSet<MaintenanceCategory> MaintenanceCategories => Set<MaintenanceCategory>();
     public DbSet<Counter> Counters => Set<Counter>();
@@ -95,14 +95,12 @@ public class AppDbContext : DbContext
             e.Ignore(x => x.Display);
         });
 
-        b.Entity<VehicleDocument>(e =>
+        b.Entity<StoredDocument>(e =>
         {
-            // One document per vehicle, enforced in the schema rather than
-            // only in the service — filtered so a replaced (soft-deleted) row
-            // never blocks uploading a new one.
-            e.HasIndex(x => x.VehicleId).IsUnique().HasFilter("\"IsDeleted\" = 0");
-            e.HasOne(x => x.Vehicle).WithMany()
-                .HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Cascade);
+            // Many documents per owner now, so no unique index — just the
+            // lookup the app actually makes: everything for one vehicle or
+            // one driver, newest first.
+            e.HasIndex(x => new { x.OwnerKind, x.OwnerId });
         });
 
         b.Entity<ExpenseCategory>(e => e.HasIndex(x => x.Name));

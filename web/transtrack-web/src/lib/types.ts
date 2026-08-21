@@ -70,8 +70,40 @@ export interface Vehicle {
 
 /** The one document held against a vehicle. The API returns null when none
  *  has been uploaded — a normal state, not an error. */
-export interface VehicleDocumentInfo {
-  vehicleId: string;
+/** Document types, split by what they can be filed against. Mirrors
+ *  DocumentTypes.For() on the server, which rejects a mismatch. */
+export const VEHICLE_DOCUMENT_TYPES = [
+  "Permit",
+  "NationalPermit",
+  "Insurance",
+  "Fitness",
+  "Pollution",
+  "Others",
+] as const;
+
+export const DRIVER_DOCUMENT_TYPES = ["AadhaarCard", "DriverLicence", "Others"] as const;
+
+export type DocumentType =
+  | (typeof VEHICLE_DOCUMENT_TYPES)[number]
+  | (typeof DRIVER_DOCUMENT_TYPES)[number];
+
+/** How a type reads on screen. The server sends its own label too; this is
+ *  for the picker, which lists types before anything has been uploaded. */
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  Permit: "Permit",
+  NationalPermit: "National permit",
+  Insurance: "Insurance",
+  Fitness: "Fitness",
+  Pollution: "Pollution",
+  AadhaarCard: "Aadhaar card",
+  DriverLicence: "Driving licence",
+  Others: "Others",
+};
+
+export interface DocumentInfo {
+  id: string;
+  documentType: DocumentType;
+  documentTypeLabel: string;
   fileName: string;
   contentType: string;
   sizeBytes: number;

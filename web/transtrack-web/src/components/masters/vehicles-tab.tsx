@@ -23,9 +23,9 @@ import {
 } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
-import { shareFile } from "@/lib/share";
-import type { Vehicle, VehicleOwnership, VehicleDocumentInfo } from "@/lib/types";
-import { Plus, Pencil, FileUp, Download, Trash2, FileText } from "lucide-react";
+import { DocumentPanel } from "@/components/masters/document-panel";
+import { VEHICLE_DOCUMENT_TYPES, type Vehicle, type VehicleOwnership } from "@/lib/types";
+import { Plus, Pencil } from "lucide-react";
 
 export function VehiclesTab() {
   const queryClient = useQueryClient();
@@ -298,9 +298,16 @@ function VehicleDialog({
               </div>
             </div>
           </div>
-          {/* Only on a saved vehicle: the document is keyed by vehicle id, so
-              there is nothing to attach it to until the row exists. */}
-          {existing && <VehicleDocumentSection vehicleId={existing.id} />}
+          {/* Only on a saved vehicle: documents are keyed by vehicle id, so
+              there is nothing to attach them to until the row exists. */}
+          {existing && (
+            <DocumentPanel
+              ownerPath="vehicles"
+              ownerId={existing.id}
+              types={VEHICLE_DOCUMENT_TYPES}
+              emptyText="No documents uploaded for this vehicle yet."
+            />
+          )}
 
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>
@@ -311,115 +318,5 @@ function VehicleDialog({
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-/// One document per vehicle — upload, download/share, remove. A vehicle with
-/// nothing uploaded (or whose file has gone missing on disk) is a normal,
-/// quiet state here, never an error.
-function VehicleDocumentSection({ vehicleId }: { vehicleId: string }) {
-  const queryClient = useQueryClient();
-  const [busy, setBusy] = useState(false);
-  const [note, setNote] = useState("");
-
-  const docQuery = useQuery({
-    queryKey: ["vehicle-document", vehicleId],
-    // "No document yet" comes back as 204 No Content, which api.get surfaces
-    // as undefined — and TanStack Query treats undefined as a failed query
-    // rather than a value. Coerced to null so the ordinary empty case stays a
-    // successful result and renders its own message.
-    queryFn: async () =>
-      (await api.get<VehicleDocumentInfo | null>(`/api/vehicles/${vehicleId}/document`)) ?? null,
-  });
-
-  const doc = docQuery.data;
-  const refresh = () => queryClient.invalidateQueries({ queryKey: ["vehicle-document", vehicleId] });
-
-  async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-
-    setBusy(true);
-    setNote("");
-    try {
-      await api.upload(`/api/vehicles/${vehicleId}/document`, file);
-      toast.success("Document uploaded.");
-      refresh();
-    } catch (err) {
-      setNote(err instanceof ApiError ? err.message : "Couldn't upload that file.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onDownload() {
-    setBusy(true);
-    setNote("");
-    try {
-      const file = await api.getFile(`/api/vehicles/${vehicleId}/document/download`, doc?.fileName ?? "document");
-      const outcome = await shareFile(file, { title: doc?.fileName ?? "Vehicle document" });
-      if (outcome === "downloaded") toast.success("Downloaded — open it from your downloads.");
-    } catch (err) {
-      // A 404 here means the record is there but the file isn't — say so
-      // plainly and let them re-upload, rather than showing a failure.
-      setNote(err instanceof ApiError && err.status === 404
-        ? "No document has been uploaded for this vehicle yet."
-        : "Couldn't open that document.");
-      refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onRemove() {
-    setBusy(true);
-    try {
-      await api.delete(`/api/vehicles/${vehicleId}/document`);
-      toast.success("Document removed.");
-      refresh();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="space-y-2 rounded-lg border p-3">
-      <Label className="text-xs text-muted-foreground">Vehicle document</Label>
-
-      {doc ? (
-        <>
-          <div className="flex items-center gap-2 text-sm">
-            <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate">{doc.fileName}</span>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {(doc.sizeBytes / (1024 * 1024)).toFixed(1)} MB
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={onDownload}>
-              <Download className="h-4 w-4" /> Open / share
-            </Button>
-            <Button type="button" variant="outline" className="h-11 text-destructive" disabled={busy} onClick={onRemove}>
-              <Trash2 className="h-4 w-4" /> Remove
-            </Button>
-          </div>
-        </>
-      ) : (
-        !docQuery.isLoading && (
-          <p className="text-sm text-muted-foreground">No document has been uploaded for this vehicle yet.</p>
-        )
-      )}
-
-      <Label
-        htmlFor={`doc-${vehicleId}`}
-        className="flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-full border text-sm font-medium hover:bg-accent"
-      >
-        <FileUp className="h-4 w-4" /> {busy ? "Working…" : doc ? "Replace document" : "Upload document"}
-      </Label>
-      <input id={`doc-${vehicleId}`} type="file" className="hidden" disabled={busy} onChange={onPick} />
-
-      {note && <p className="text-sm text-muted-foreground">{note}</p>}
-    </div>
   );
 }

@@ -24,11 +24,11 @@ export interface NavItem {
 /**
  * Navigation order, most-used first:
  *   Dashboard, Trips, Approvals, Maintenance, Driver Ledger, Reports,
- *   Masters, Activity, Settings.
+ *   Vehicles & Contacts, Activity, Settings.
  *
  * The desktop sidebar shows all of it in that order; the mobile tab bar takes
  * the top four and puts the rest behind "More", keeping the bar at five slots
- * so it never crowds. Masters sits with the other reference screens rather
+ * so it never crowds. Vehicles & Contacts sits with the other reference screens
  * than in the tab bar — it's set up once and rarely revisited, unlike
  * recording a day's maintenance.
  */
@@ -44,7 +44,7 @@ export const primaryNavItems: NavItem[] = [
 export const moreNavItems: NavItem[] = [
   { href: "/driver-ledger", label: "Driver Ledger", icon: BookUser },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/masters", label: "Masters", icon: Database },
+  { href: "/masters", label: "Vehicles & Contacts", icon: Database },
   { href: "/activity", label: "Activity", icon: History, roles: ["Owner", "CoOwner"] },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

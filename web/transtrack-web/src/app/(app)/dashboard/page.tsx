@@ -245,7 +245,7 @@ function AttentionRow({
 }
 
 /** One vehicle document's alert line — days overdue when expired, days
- *  remaining when still coming up. Tapping goes to Masters (Vehicles is its
+ *  remaining when still coming up. Tapping goes to Vehicles & Contacts (Vehicles is its
  *  default tab), the only vehicle-editing screen the app has today. */
 function AlertRow({ alert }: { alert: ComplianceAlert }) {
   const days = Math.ceil((new Date(alert.upto).getTime() - Date.now()) / 86_400_000);

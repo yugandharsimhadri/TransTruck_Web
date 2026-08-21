@@ -57,7 +57,7 @@ export default function TripDetailPage() {
   const statesQuery = useQuery({ queryKey: ["states"], queryFn: () => api.get<State[]>("/api/masters/states") });
 
   // Quick-add from the trip form: create the record, then select it —
-  // reuses the same masters endpoints/validation the Masters screen uses.
+  // reuses the same masters endpoints/validation the Vehicles & Contacts screen uses.
   const [quickAddParty, setQuickAddParty] = useState<string | null>(null);
   const [quickAddCity, setQuickAddCity] = useState<{ text: string; target: "from" | "to" } | null>(null);
 
@@ -566,7 +566,7 @@ export default function TripDetailPage() {
 }
 
 /** Add a party without leaving the trip form. Same POST/validation the
- *  Masters screen uses — just name is required, phone is optional. */
+ *  Vehicles & Contacts screen uses — just name is required, phone optional. */
 function QuickAddPartyDialog({
   searchText,
   onClose,

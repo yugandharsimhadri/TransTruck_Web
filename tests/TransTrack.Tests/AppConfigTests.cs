@@ -107,7 +107,7 @@ public class AppConfigTests : IDisposable
             environment: "Production");
 
         Assert.Equal(backup, DbBootstrapper.BackupDirectory);
-        Assert.Equal(documents, FileSystemVehicleDocumentStorage.RootDirectory);
+        Assert.Equal(documents, FileSystemDocumentStorage.RootDirectory);
     }
 
     public void Dispose()
