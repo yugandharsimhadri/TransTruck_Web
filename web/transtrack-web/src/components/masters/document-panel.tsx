@@ -37,6 +37,36 @@ export function DocumentPanel({
 }: {
   /** "vehicles" or "drivers" — the API segment its documents hang off. */
   ownerPath: "vehicles" | "drivers";
+  /** Null while the owner is still being created. Documents are stored
+   *  against an id, so there is nothing to attach them to yet — the panel
+   *  still renders, greyed out, so the capability is visible on the Add form
+   *  rather than appearing from nowhere after the first save. */
+  ownerId: string | null;
+  types: readonly DocumentType[];
+  emptyText: string;
+}) {
+  if (!ownerId) {
+    return (
+      <div className="space-y-2 rounded-lg border border-dashed p-3 opacity-70">
+        <Label className="text-xs text-muted-foreground">Documents</Label>
+        <p className="text-sm text-muted-foreground">
+          Save first — then you can upload {types.slice(0, 2).map((t) => DOCUMENT_TYPE_LABELS[t].toLowerCase()).join(", ")} and
+          more, right here.
+        </p>
+      </div>
+    );
+  }
+
+  return <DocumentList ownerPath={ownerPath} ownerId={ownerId} types={types} emptyText={emptyText} />;
+}
+
+function DocumentList({
+  ownerPath,
+  ownerId,
+  types,
+  emptyText,
+}: {
+  ownerPath: "vehicles" | "drivers";
   ownerId: string;
   types: readonly DocumentType[];
   emptyText: string;

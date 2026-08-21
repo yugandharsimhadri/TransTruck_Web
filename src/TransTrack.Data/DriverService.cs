@@ -11,7 +11,10 @@ public class DriverService(IDbContextFactory<AppDbContext> factory)
         return await db.Drivers.AsNoTracking().Where(d => !d.IsDeleted).OrderBy(d => d.Name).ToListAsync();
     }
 
-    public async Task SaveDriverAsync(Driver driver)
+    /// <summary>Returns the saved driver id — the caller needs it for a newly
+    /// created driver, since documents are stored against that id and there is
+    /// nothing to attach one to until the row exists.</summary>
+    public async Task<Guid> SaveDriverAsync(Driver driver)
     {
         if (!PhoneValidator.IsValid(driver.Phone))
             throw new InvalidOperationException("That doesn't look like a valid phone number.");
@@ -34,6 +37,7 @@ public class DriverService(IDbContextFactory<AppDbContext> factory)
         }
 
         await db.SaveChangesAsync();
+        return entity.Id;
     }
 
     public async Task DeleteDriverAsync(Guid id)

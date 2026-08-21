@@ -11,6 +11,7 @@ namespace TransTrack.Tests;
 /// owner can hold several, that each carries a type, and that a type can't be
 /// filed against the wrong kind of owner.
 /// </summary>
+[Collection(ProcessStateCollection.Name)]
 public class DocumentTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"lo-docs-{Guid.NewGuid():N}");

@@ -11,6 +11,7 @@ namespace TransTrack.Tests;
 /// silently ignored and the app quietly kept writing to the C: defaults.
 /// These pin the base + environment layering down.
 /// </summary>
+[Collection(ProcessStateCollection.Name)]
 public class AppConfigTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), $"lo-config-{Guid.NewGuid():N}");

@@ -93,6 +93,16 @@ export function DriversTab() {
         driver={editing}
         onClose={() => setEditing(null)}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["drivers"] })}
+        onSavedNew={async (id) => {
+          // Refetch, then point the dialog at the real saved row so its
+          // document upload is reachable without closing and reopening.
+          const list = await queryClient.fetchQuery({
+            queryKey: ["drivers"],
+            queryFn: () => api.get<Driver[]>("/api/drivers"),
+          });
+          const saved = list.find((d) => d.id === id);
+          if (saved) setEditing(saved);
+        }}
       />
     </div>
   );
@@ -102,10 +112,14 @@ function DriverDialog({
   driver,
   onClose,
   onSaved,
+  onSavedNew,
 }: {
   driver: Driver | "new" | null;
   onClose: () => void;
   onSaved: () => void;
+  /** Hands the parent the id of a just-created driver so the dialog can stay
+   *  open on it, which is what makes the document upload reachable. */
+  onSavedNew: (id: string) => void;
 }) {
   const isNew = driver === "new";
   const existing = isNew ? null : driver;
@@ -128,7 +142,7 @@ function DriverDialog({
 
   const mutation = useMutation({
     mutationFn: () =>
-      api.post("/api/drivers", {
+      api.post<string>("/api/drivers", {
         id: existing?.id ?? "00000000-0000-0000-0000-000000000000",
         name,
         phone,
@@ -136,9 +150,16 @@ function DriverDialog({
         joiningDate: joiningDate || null,
         isActive: existing?.isActive ?? true,
       }),
-    onSuccess: () => {
-      toast.success("Driver saved.");
+    onSuccess: (savedId) => {
       onSaved();
+
+      if (isNew && savedId) {
+        toast.success("Driver saved — you can attach documents now.");
+        onSavedNew(savedId);
+        return;
+      }
+
+      toast.success("Driver saved.");
       onClose();
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Something went wrong."),
@@ -176,15 +197,14 @@ function DriverDialog({
             <Label htmlFor="joiningDate">Joining date (optional)</Label>
             <Input id="joiningDate" type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
           </div>
-          {/* Documents hang off a saved driver, same as vehicles. */}
-          {existing && (
-            <DocumentPanel
-              ownerPath="drivers"
-              ownerId={existing.id}
-              types={DRIVER_DOCUMENT_TYPES}
-              emptyText="No documents uploaded for this driver yet."
-            />
-          )}
+          {/* Documents hang off a saved driver, same as vehicles — shown
+              while adding too, so the capability is visible up front. */}
+          <DocumentPanel
+            ownerPath="drivers"
+            ownerId={existing?.id ?? null}
+            types={DRIVER_DOCUMENT_TYPES}
+            emptyText="No documents uploaded for this driver yet."
+          />
 
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>

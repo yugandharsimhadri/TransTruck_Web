@@ -18,8 +18,9 @@ public class DriversController(DriverService drivers, DocumentService documents)
     {
         try
         {
-            await drivers.SaveDriverAsync(driver);
-            return Ok();
+            // The id comes back so the form can stay open on a newly created
+            // driver and offer its document upload straight away.
+            return Ok(await drivers.SaveDriverAsync(driver));
         }
         catch (InvalidOperationException ex)
         {

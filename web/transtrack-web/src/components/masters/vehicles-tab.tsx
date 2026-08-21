@@ -298,16 +298,16 @@ function VehicleDialog({
               </div>
             </div>
           </div>
-          {/* Only on a saved vehicle: documents are keyed by vehicle id, so
-              there is nothing to attach them to until the row exists. */}
-          {existing && (
-            <DocumentPanel
-              ownerPath="vehicles"
-              ownerId={existing.id}
-              types={VEHICLE_DOCUMENT_TYPES}
-              emptyText="No documents uploaded for this vehicle yet."
-            />
-          )}
+          {/* Shown while adding too, greyed out: documents are keyed by
+              vehicle id, so there is nothing to attach them to until the row
+              exists — but hiding the panel entirely made the feature look
+              missing rather than not-yet-available. */}
+          <DocumentPanel
+            ownerPath="vehicles"
+            ownerId={existing?.id ?? null}
+            types={VEHICLE_DOCUMENT_TYPES}
+            emptyText="No documents uploaded for this vehicle yet."
+          />
 
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>
