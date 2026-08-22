@@ -151,7 +151,10 @@ export default function LoginPage() {
       </div>
 
       <Card className="w-full max-w-sm border-none shadow-lg shadow-primary/5">
-        <CardHeader className="items-center text-center">
+        {/* justify-items-center, not items-center: CardHeader is a grid, so
+            items-center only centres on the block axis and left the logo
+            hard against the left edge. */}
+        <CardHeader className="justify-items-center text-center">
           {/* The full logo already carries the name and the tagline, so no
               separate title line — repeating it would just say it twice. */}
           <BrandLogo className="h-auto w-72" />
