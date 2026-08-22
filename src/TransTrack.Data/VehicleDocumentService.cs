@@ -53,6 +53,16 @@ public class DocumentService(IDbContextFactory<AppDbContext> factory, IDocumentS
         if (!DocumentTypes.IsValidFor(ownerKind, documentType))
             throw new InvalidOperationException($"{documentType.Label()} is not a document type for a {ownerKind.ToString().ToLowerInvariant()}.");
 
+        // Read the leading bytes and let them decide the format. The content
+        // type the caller sent is ignored on purpose — it is whatever the
+        // client chose to claim, and this file gets served back later with
+        // whatever type is recorded here.
+        var (header, body) = await PeekHeaderAsync(content);
+
+        var detected = DocumentFormats.Detect(header)
+                       ?? throw new InvalidOperationException(
+                           $"That file type is not supported. Upload a {DocumentFormats.Accepted} file.");
+
         await using var db = await factory.CreateDbContextAsync();
 
         var companyId = await ResolveOwnerCompanyAsync(db, ownerKind, ownerId)
@@ -66,11 +76,11 @@ public class DocumentService(IDbContextFactory<AppDbContext> factory, IDocumentS
             OwnerId = ownerId,
             DocumentType = documentType,
             FileName = Path.GetFileName(fileName),
-            ContentType = contentType,
+            ContentType = detected,
             SizeBytes = sizeBytes,
         };
 
-        document.StoredPath = await storage.SaveAsync(companyId, ownerKind, ownerId, document.Id, fileName, content);
+        document.StoredPath = await storage.SaveAsync(companyId, ownerKind, ownerId, document.Id, fileName, body);
 
         db.Documents.Add(document);
         await db.SaveChangesAsync();
@@ -112,6 +122,24 @@ public class DocumentService(IDbContextFactory<AppDbContext> factory, IDocumentS
 
         doc.IsDeleted = true;
         await db.SaveChangesAsync();
+    }
+
+    /// <summary>Reads the first bytes for format detection and hands back a
+    /// stream still positioned at the start. A rewindable stream is simply
+    /// rewound; anything else (a raw request body) gets the consumed header
+    /// stitched back on the front, so the file is written whole either way.</summary>
+    private static async Task<(byte[] Header, Stream Body)> PeekHeaderAsync(Stream content)
+    {
+        var header = new byte[DocumentFormats.HeaderBytes];
+        var read = await content.ReadAtLeastAsync(header, header.Length, throwOnEndOfStream: false);
+
+        if (content.CanSeek)
+        {
+            content.Position = 0;
+            return (header[..read], content);
+        }
+
+        return (header[..read], new ConcatStream(new MemoryStream(header, 0, read), content));
     }
 
     /// <summary>The owner's company, which also proves the owner exists and is

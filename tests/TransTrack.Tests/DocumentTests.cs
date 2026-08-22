@@ -28,8 +28,12 @@ public class DocumentTests : IDisposable
     private static DocumentService ServiceFor(TestWorld world) =>
         new(world.Factory, new FileSystemDocumentStorage());
 
+    /// <summary>A file that passes the format check: a real PDF signature
+    /// followed by whatever payload the test wants to identify it by.</summary>
     private static Stream FileOf(string content = "pretend this is a scan") =>
-        new MemoryStream(Encoding.UTF8.GetBytes(content));
+        new MemoryStream(Encoding.UTF8.GetBytes("%PDF-1.7 " + content));
+
+    private static Stream BytesOf(params byte[] bytes) => new MemoryStream(bytes);
 
     [Fact]
     public async Task A_vehicle_can_hold_several_documents_each_with_its_own_type()
@@ -137,7 +141,13 @@ public class DocumentTests : IDisposable
             using var reader = new StreamReader(opened!.Value.Content);
             var text = await reader.ReadToEndAsync();
 
-            Assert.Equal(doc.DocumentType == DocumentType.Permit ? "permit contents" : "insurance contents", text);
+            // The full round trip, header included: proves the bytes consumed
+            // for format detection were put back rather than lost.
+            Assert.Equal(
+                doc.DocumentType == DocumentType.Permit
+                    ? "%PDF-1.7 permit contents"
+                    : "%PDF-1.7 insurance contents",
+                text);
         }
     }
 
@@ -191,6 +201,72 @@ public class DocumentTests : IDisposable
                 "p.pdf", "application/pdf", content, content.Length));
 
         Assert.Contains("not found", error.Message);
+    }
+
+    // ── Accepted formats ──────────────────────────────────────────────────
+
+    public static TheoryData<string, byte[]> AcceptedFiles => new()
+    {
+        { "application/pdf", "%PDF-1.7 body"u8.ToArray() },
+        { "image/jpeg", [0xFF, 0xD8, 0xFF, 0xE0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+        { "image/png", [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 0, 0, 0, 0, 0] },
+        { "image/webp", "RIFF....WEBPVP8 "u8.ToArray() },
+        { "image/heic", "....ftypheic...."u8.ToArray() },
+    };
+
+    [Theory]
+    [MemberData(nameof(AcceptedFiles))]
+    public async Task A_pdf_or_ordinary_image_is_accepted_and_typed_by_its_bytes(
+        string expectedContentType, byte[] bytes)
+    {
+        await using var world = await TestWorld.CreateAsync();
+        var documents = ServiceFor(world);
+
+        using var content = BytesOf(bytes);
+        await documents.AddAsync(DocumentOwnerKind.Vehicle, world.VehicleId, DocumentType.Permit,
+            "scan.bin", "application/octet-stream", content, content.Length);
+
+        var doc = Assert.Single(await documents.ListAsync(DocumentOwnerKind.Vehicle, world.VehicleId));
+
+        // Typed from the file itself, not from the "application/octet-stream"
+        // the caller claimed.
+        Assert.Equal(expectedContentType, doc.ContentType);
+    }
+
+    [Theory]
+    [InlineData("MZ ")]                 // Windows executable
+    [InlineData("<html><script>alert(1)</script>")] // HTML, the stored-XSS case
+    [InlineData("PK")]                 // zip/docx
+    [InlineData("plain text, no signature")]
+    public async Task Anything_else_is_refused(string payload)
+    {
+        await using var world = await TestWorld.CreateAsync();
+        var documents = ServiceFor(world);
+
+        using var content = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => documents.AddAsync(DocumentOwnerKind.Vehicle, world.VehicleId, DocumentType.Permit,
+                "payload.pdf", "application/pdf", content, content.Length));
+
+        Assert.Contains("not supported", error.Message);
+    }
+
+    /// <summary>The reason the check reads bytes rather than headers: the
+    /// filename and content type are both whatever the client chose to send,
+    /// and this file is served back later with the type recorded here.</summary>
+    [Fact]
+    public async Task An_html_file_claiming_to_be_a_pdf_is_refused()
+    {
+        await using var world = await TestWorld.CreateAsync();
+        var documents = ServiceFor(world);
+
+        using var content = new MemoryStream(Encoding.UTF8.GetBytes("<html><body>not a pdf</body></html>"));
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => documents.AddAsync(DocumentOwnerKind.Driver, world.DriverId, DocumentType.AadhaarCard,
+                "aadhaar.pdf", "application/pdf", content, content.Length));
+
+        Assert.Contains("not supported", error.Message);
+        Assert.Empty(await documents.ListAsync(DocumentOwnerKind.Driver, world.DriverId));
     }
 
     public void Dispose()

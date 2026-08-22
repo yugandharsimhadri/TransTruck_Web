@@ -200,7 +200,16 @@ function DocumentList({
         >
           <FileUp className="h-4 w-4" /> {busy ? "Uploading…" : "Upload"}
         </Button>
-        <input ref={fileInput} type="file" className="hidden" disabled={busy} onChange={onPick} />
+        {/* A hint to the picker, not the rule: the server checks the file's
+            actual leading bytes, since accept is trivially bypassed. */}
+        <input
+          ref={fileInput}
+          type="file"
+          accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf,.jpg,.jpeg,.png,.webp,.heic"
+          className="hidden"
+          disabled={busy}
+          onChange={onPick}
+        />
       </div>
 
       {note && <p className="text-sm text-muted-foreground">{note}</p>}
