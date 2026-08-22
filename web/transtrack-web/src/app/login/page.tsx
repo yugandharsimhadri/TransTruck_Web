@@ -312,6 +312,21 @@ export default function LoginPage() {
           InstallAppCard. Placed after the card rather than as a popup, so it
           never gets between someone and signing in. */}
       <InstallAppCard />
+
+      {/* Build credit. rel="noopener noreferrer" because target="_blank"
+          otherwise hands the opened page a window.opener reference back to
+          this one. */}
+      <p className="mt-6 text-center text-xs text-muted-foreground">
+        Designed and developed by{" "}
+        <a
+          href="https://sivayaantechnologies.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="font-medium text-foreground underline-offset-4 hover:underline"
+        >
+          Sivayaan Technologies
+        </a>
+      </p>
     </div>
   );
 }
