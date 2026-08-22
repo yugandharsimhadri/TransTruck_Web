@@ -45,7 +45,12 @@ export function PartiesTab() {
                 {p.gstin ? ` · ${p.gstin}` : ""}
               </p>
             </div>
-            <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
+            >
+              <Pencil className="h-4 w-4" />
+            </span>
           </button>
         ))}
         {partiesQuery.data?.length === 0 && (

@@ -49,7 +49,12 @@ export function DriversTab() {
             <Badge variant={d.isActive ? "success" : "secondary"} className="shrink-0">
               {d.isActive ? "Active" : "Inactive"}
             </Badge>
-            <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
+            >
+              <Pencil className="h-4 w-4" />
+            </span>
           </button>
         ))}
         {driversQuery.data?.length === 0 && (

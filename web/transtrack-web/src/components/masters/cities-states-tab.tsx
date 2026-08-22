@@ -47,7 +47,12 @@ export function CitiesStatesTab() {
               className="flex min-h-11 w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition hover:bg-accent desktop:min-h-0"
             >
               <span className="flex-1 truncate">{s.name}</span>
-              <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </span>
             </button>
           ))}
           {statesQuery.data?.length === 0 && <p className="p-2 text-sm text-muted-foreground">No states yet.</p>}
@@ -70,7 +75,12 @@ export function CitiesStatesTab() {
               className="flex min-h-11 w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition hover:bg-accent desktop:min-h-0"
             >
               <span className="flex-1 truncate">{c.display}</span>
-              <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </span>
             </button>
           ))}
           {citiesQuery.data?.length === 0 && <p className="p-2 text-sm text-muted-foreground">No cities yet.</p>}

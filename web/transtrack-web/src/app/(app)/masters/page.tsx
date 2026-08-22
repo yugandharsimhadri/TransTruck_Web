@@ -17,7 +17,11 @@ export default function MastersPage() {
           <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
           <TabsTrigger value="drivers">Drivers</TabsTrigger>
           <TabsTrigger value="parties">Parties</TabsTrigger>
-          <TabsTrigger value="places">Cities & States</TabsTrigger>
+          {/* "Places" rather than "Cities & States": the longer label pushed
+              this tab off the edge of a 320px phone. The list scrolls, so it
+              was reachable, but a tab you have to discover by swiping is a tab
+              most people never find. */}
+          <TabsTrigger value="places">Places</TabsTrigger>
         </TabsList>
         <TabsContent value="vehicles"><VehiclesTab /></TabsContent>
         <TabsContent value="drivers"><DriversTab /></TabsContent>

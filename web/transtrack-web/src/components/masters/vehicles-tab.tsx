@@ -66,7 +66,12 @@ export function VehiclesTab() {
             <Badge variant={v.isActive ? "success" : "secondary"} className="shrink-0">
               {v.isActive ? "Active" : "Inactive"}
             </Badge>
-            <Pencil className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <span
+              aria-hidden="true"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground"
+            >
+              <Pencil className="h-4 w-4" />
+            </span>
           </button>
         ))}
         {vehiclesQuery.data?.length === 0 && (

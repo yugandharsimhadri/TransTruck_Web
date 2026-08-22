@@ -2,12 +2,23 @@
 // still loads with no connection; API calls always go to the network (never
 // cached, since fleet data must never be served stale to a driver mid-trip).
 //
-// Bumped to v3 along with the navigation fix below, so every existing client
-// drops the cache that was stranding it on an old build.
-const CACHE_NAME = "lorryowner-shell-v3";
+// Bumped whenever what is cached changes, so every existing client drops the
+// previous copy instead of being stranded on it.
+const CACHE_NAME = "lorryowner-shell-v4";
 // addAll is all-or-nothing: one 404 here and the whole install rejects, which
 // silently costs the offline shell. Keep this list to files that certainly exist.
-const SHELL_URLS = ["/", "/login", "/manifest.json", "/icon-192.png", "/lorryowner-logo.png"];
+//
+// The brand images are here rather than left to the runtime cache because they
+// are on the critical path of the first screen anyone sees — precaching them
+// means the sign-in page paints its logo immediately on a slow connection.
+const SHELL_URLS = [
+  "/",
+  "/login",
+  "/manifest.json",
+  "/icon-192.png",
+  "/lorryowner-logo.png",
+  "/lorryowner-mark.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_URLS)));
