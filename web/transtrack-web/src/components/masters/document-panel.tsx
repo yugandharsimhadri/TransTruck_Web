@@ -13,9 +13,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { api, ApiError } from "@/lib/api";
+import { prepareUpload } from "@/lib/prepare-upload";
 import { shareFile } from "@/lib/share";
 import { DOCUMENT_TYPE_LABELS, type DocumentInfo, type DocumentType } from "@/lib/types";
 import { FileUp, Download, Trash2, FileText } from "lucide-react";
+
+interface UploadLimits {
+  maxBytes: number;
+  maxMb: number;
+  accepted: string;
+}
+
+/** Only used if the limits call hasn't answered yet — the server stays the
+ *  real authority, this just keeps the first upload from being unbounded. */
+const DEFAULT_MAX_BYTES = 2.5 * 1024 * 1024;
 
 /**
  * The documents held against one vehicle or one driver — a list, plus an
@@ -79,6 +90,17 @@ function DocumentList({
 
   const key = ["documents", ownerPath, ownerId];
 
+  // Machine configuration, not data: fetched once and kept, so the client can
+  // turn away an oversized file before sending it up a mobile connection
+  // without the limit being duplicated as a magic number here.
+  const limitsQuery = useQuery({
+    queryKey: ["documents", "limits"],
+    queryFn: () => api.get<UploadLimits>("/api/documents/limits"),
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+  const maxBytes = limitsQuery.data?.maxBytes ?? DEFAULT_MAX_BYTES;
+
   const docsQuery = useQuery({
     queryKey: key,
     // An owner with nothing on file returns an empty list, not 204 — but keep
@@ -100,17 +122,34 @@ function DocumentList({
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    // Cleared straight away so picking the same file twice still fires change.
     e.target.value = "";
     if (!file) return;
 
     setBusy(true);
     setNote("");
     try {
-      await api.upload(`/api/${ownerPath}/${ownerId}/documents`, file, { documentType });
+      // A phone photo is 2-5 MB, well over the limit, so it is shrunk here
+      // rather than refused. Only a file that still doesn't fit afterwards —
+      // in practice an oversized PDF — is turned away, and it is turned away
+      // before a byte goes over the network.
+      const prepared = await prepareUpload(file, maxBytes);
+      if (!prepared.ok) {
+        setNote(prepared.reason);
+        return;
+      }
+
+      await api.upload(`/api/${ownerPath}/${ownerId}/documents`, prepared.file, { documentType });
       toast.success(`${DOCUMENT_TYPE_LABELS[documentType]} uploaded.`);
       refresh();
     } catch (err) {
-      setNote(err instanceof ApiError ? err.message : "Couldn't upload that file.");
+      setNote(
+        err instanceof ApiError
+          ? err.status === 413
+            ? "That file is too large to upload."
+            : err.message
+          : "Couldn't upload that file. Check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -177,10 +216,18 @@ function DocumentList({
         !docsQuery.isLoading && <p className="text-sm text-muted-foreground">{emptyText}</p>
       )}
 
-      <div className="grid grid-cols-2 gap-2">
+      {/* min-w-0 on both controls is load-bearing, not tidying. A grid item
+          defaults to min-width:auto, so neither control could shrink below its
+          own text, and the pair came to more than a 320px phone leaves inside
+          the dialog. The panel then pushed the whole form wider than the card
+          it sits in — the dialog itself had to stop stretching too, which is
+          the matching [&>*]:min-w-0 in DialogContent. */}
+      <div className="relative grid grid-cols-2 gap-2">
         <Select value={documentType} onValueChange={(v) => v && setDocumentType(v as DocumentType)}>
-          <SelectTrigger className="h-11 w-full">
-            <SelectValue>{(v: DocumentType) => DOCUMENT_TYPE_LABELS[v]}</SelectValue>
+          <SelectTrigger className="h-11 w-full min-w-0">
+            <SelectValue>
+              {(v: DocumentType) => <span className="truncate">{DOCUMENT_TYPE_LABELS[v]}</span>}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {types.map((t) => (
@@ -194,19 +241,35 @@ function DocumentList({
         <Button
           type="button"
           variant="outline"
-          className="h-11"
+          className="h-11 min-w-0"
           disabled={busy}
           onClick={() => fileInput.current?.click()}
         >
-          <FileUp className="h-4 w-4" /> {busy ? "Uploading…" : "Upload"}
+          <FileUp className="h-4 w-4 shrink-0" />
+          <span className="truncate">{busy ? "Uploading…" : "Upload"}</span>
         </Button>
-        {/* A hint to the picker, not the rule: the server checks the file's
-            actual leading bytes, since accept is trivially bypassed. */}
+        {/* Two things here are deliberate and both are about iOS Safari.
+
+            The input is moved off-screen rather than given `hidden`:
+            display:none stops Safari opening the picker at all when the input
+            is clicked through a ref, which made Upload appear to do nothing on
+            an iPhone while working everywhere else.
+
+            `accept` is the two broad types rather than a long list of
+            specific ones. Safari matches that list against what the Photos
+            app can offer, and a list naming image/heic and extensions would
+            leave photos greyed out and unpickable. image/* covers everything a
+            camera produces, HEIC included.
+
+            Either way accept is only a hint to the picker, never the rule —
+            the server checks the file's actual leading bytes. */}
         <input
           ref={fileInput}
           type="file"
-          accept="application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf,.jpg,.jpeg,.png,.webp,.heic"
-          className="hidden"
+          accept="image/*,application/pdf"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          tabIndex={-1}
+          aria-hidden="true"
           disabled={busy}
           onChange={onPick}
         />

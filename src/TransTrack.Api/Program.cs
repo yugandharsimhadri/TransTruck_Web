@@ -123,6 +123,12 @@ builder.Services.AddCors(options =>
         .WithOrigins(allowedOrigins)
         .AllowAnyHeader()
         .AllowAnyMethod()
+        // The web app is on a different host to the API, and a cross-origin
+        // response only exposes a handful of headers to JavaScript unless the
+        // server names the rest. Without this the client could never read the
+        // filename the API attaches to an LR, bill, report or document, and
+        // silently fell back to a generic name on every download.
+        .WithExposedHeaders("Content-Disposition")
         .AllowCredentials());
 });
 

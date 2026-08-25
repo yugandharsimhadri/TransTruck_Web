@@ -21,7 +21,8 @@ public record DocumentInfo(
 /// query.</summary>
 public class DocumentService(IDbContextFactory<AppDbContext> factory, IDocumentStorage storage)
 {
-    public long MaxBytes => Math.Max(1, AppConfig.Current.VehicleDocumentMaxMb) * 1024L * 1024L;
+    public double MaxMb => Math.Max(0.1, AppConfig.Current.VehicleDocumentMaxMb);
+    public long MaxBytes => (long)(MaxMb * 1024 * 1024);
 
     /// <summary>Everything on file for one owner, newest first. An owner with
     /// nothing uploaded returns an empty list, which is a normal state.</summary>
@@ -48,7 +49,9 @@ public class DocumentService(IDbContextFactory<AppDbContext> factory, IDocumentS
     {
         if (sizeBytes <= 0) throw new InvalidOperationException("That file is empty.");
         if (sizeBytes > MaxBytes)
-            throw new InvalidOperationException($"That file is larger than the {AppConfig.Current.VehicleDocumentMaxMb} MB limit.");
+            throw new InvalidOperationException(
+                $"That file is {sizeBytes / 1024d / 1024d:0.#} MB. The limit is {MaxMb:0.#} MB — " +
+                "take the photo again at a smaller size, or upload a PDF scan.");
 
         if (!DocumentTypes.IsValidFor(ownerKind, documentType))
             throw new InvalidOperationException($"{documentType.Label()} is not a document type for a {ownerKind.ToString().ToLowerInvariant()}.");

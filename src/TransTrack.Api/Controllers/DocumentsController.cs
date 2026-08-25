@@ -26,6 +26,18 @@ public class DocumentsController(DocumentService documents) : ControllerBase
         return File(doc.Value.Content, doc.Value.ContentType, doc.Value.FileName);
     }
 
+    /// <summary>The upload rules this server is configured with, so the
+    /// client can reject an oversized file before spending a phone's data
+    /// sending it — and so the limit lives in one place (appsettings.json)
+    /// rather than being repeated as a magic number on the frontend.</summary>
+    [HttpGet("limits")]
+    public ActionResult<object> Limits() => Ok(new
+    {
+        maxBytes = documents.MaxBytes,
+        maxMb = documents.MaxMb,
+        accepted = DocumentFormats.Accepted,
+    });
+
     [HttpDelete("{documentId:guid}")]
     public async Task<IActionResult> Delete(Guid documentId)
     {

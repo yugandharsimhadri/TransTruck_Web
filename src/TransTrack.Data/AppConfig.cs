@@ -23,9 +23,11 @@ public class AppSettings
     /// the VehicleDocuments table.</summary>
     public string? VehicleDocumentDirectory { get; set; }
 
-    /// <summary>Largest upload accepted, in MB. Rejected above this with a
-    /// plain message rather than a failed request.</summary>
-    public int VehicleDocumentMaxMb { get; set; } = 10;
+    /// <summary>Largest upload accepted, in MB. Fractional on purpose — the
+    /// useful limit for a phone photo sits between whole numbers, and an int
+    /// silently truncated 2.5 to 2. Rejected above this with a plain message
+    /// rather than a failed request.</summary>
+    public double VehicleDocumentMaxMb { get; set; } = 2.5;
 
     /// <summary>Days of log files to keep.</summary>
     public int LogDaysToKeep { get; set; } = 30;

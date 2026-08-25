@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using TransTrack.Core;
@@ -269,9 +270,85 @@ public class DocumentTests : IDisposable
         Assert.Empty(await documents.ListAsync(DocumentOwnerKind.Driver, world.DriverId));
     }
 
+    // ── The size limit ──────────────────────────────────────────────────────
+    // Configured in MB and deliberately fractional: the useful ceiling for a
+    // photographed permit sits at 2.5, and the setting was an int, which
+    // truncated that to 2 without saying so.
+
+    /// <summary>Points AppConfig at a throwaway setting for one test.</summary>
+    private static void UseMaxMb(double megabytes) =>
+        AppConfig.Override(new AppSettings { VehicleDocumentMaxMb = megabytes });
+
+    private static void ResetConfig() =>
+        typeof(AppConfig).GetField("_settings", BindingFlags.NonPublic | BindingFlags.Static)!
+            .SetValue(null, null);
+
+    [Fact]
+    public void A_fractional_limit_survives_configuration()
+    {
+        UseMaxMb(2.5);
+
+        var documents = new DocumentService(null!, null!);
+
+        Assert.Equal(2.5, documents.MaxMb);
+        Assert.Equal((long)(2.5 * 1024 * 1024), documents.MaxBytes);
+    }
+
+    [Fact]
+    public async Task A_file_over_the_limit_is_refused_with_its_size_in_the_message()
+    {
+        UseMaxMb(2.5);
+
+        await using var world = await TestWorld.CreateAsync();
+        var documents = ServiceFor(world);
+
+        // Just over 2.5 MB, and valid in every other respect — only the size
+        // is wrong, so nothing else can be what rejects it.
+        var oversized = new byte[(long)(2.5 * 1024 * 1024) + 1];
+        "%PDF-1.7"u8.CopyTo(oversized);
+        using var content = new MemoryStream(oversized);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            documents.AddAsync(DocumentOwnerKind.Vehicle, world.VehicleId, DocumentType.Permit,
+                "big.pdf", "application/pdf", content, content.Length));
+
+        Assert.Contains("2.5 MB", error.Message);
+        Assert.Empty(await documents.ListAsync(DocumentOwnerKind.Vehicle, world.VehicleId));
+    }
+
+    [Fact]
+    public async Task A_file_just_under_the_limit_is_accepted()
+    {
+        UseMaxMb(2.5);
+
+        await using var world = await TestWorld.CreateAsync();
+        var documents = ServiceFor(world);
+
+        var sized = new byte[(long)(2.5 * 1024 * 1024)];
+        "%PDF-1.7"u8.CopyTo(sized);
+        using var content = new MemoryStream(sized);
+
+        await documents.AddAsync(DocumentOwnerKind.Vehicle, world.VehicleId, DocumentType.Permit,
+            "just-fits.pdf", "application/pdf", content, content.Length);
+
+        Assert.Single(await documents.ListAsync(DocumentOwnerKind.Vehicle, world.VehicleId));
+    }
+
+    [Fact]
+    public void A_limit_configured_at_zero_falls_back_rather_than_refusing_everything()
+    {
+        // A missing or nonsensical value must not turn into "no upload works".
+        UseMaxMb(0);
+
+        var documents = new DocumentService(null!, null!);
+
+        Assert.True(documents.MaxBytes > 0);
+    }
+
     public void Dispose()
     {
         Environment.SetEnvironmentVariable(FileSystemDocumentStorage.DirectoryOverrideVariable, _original);
+        ResetConfig();
         try { Directory.Delete(_dir, recursive: true); } catch { /* best effort */ }
     }
 }

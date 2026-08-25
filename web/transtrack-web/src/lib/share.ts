@@ -62,8 +62,18 @@ function downloadFile(file: File): void {
   const link = document.createElement("a");
   link.href = url;
   link.download = file.name;
+  // Safari ignores the download attribute for a blob and navigates instead, so
+  // without a target the current page — the form the user was filling in —
+  // would be replaced by the PDF.
+  link.target = "_blank";
+  link.rel = "noopener";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+
+  // Revoking immediately after click() is a race: Safari has not started
+  // fetching the blob yet at that point, so the URL dies first and nothing
+  // opens. Held briefly instead, then released so the file doesn't sit in
+  // memory for the rest of the session.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
