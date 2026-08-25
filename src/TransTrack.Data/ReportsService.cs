@@ -10,6 +10,13 @@ namespace TransTrack.Data;
 /// simply ignored by that query.</summary>
 public class ReportsService(IDbContextFactory<AppDbContext> factory)
 {
+    /// <summary>The most trips one report or export will assemble at once.
+    /// Set far above any range a real company reports on — a busy fleet runs a
+    /// few thousand trips a year — so it is only ever reached by an unbounded
+    /// "everything, ever" export, which is the case that would otherwise take
+    /// the server down.</summary>
+    public const int MaxRows = 5000;
+
     public async Task<List<Trip>> GetTripsAsync(Guid? vehicleId, Guid? driverId, DateTime? from, DateTime? to, VehicleOwnership? ownership = null)
     {
         await using var db = await factory.CreateDbContextAsync();
@@ -41,6 +48,20 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
         if (from is { } f) query = query.Where(t => t.Date >= f.Date);
         if (to is { } t2) query = query.Where(t => t.Date <= t2.Date);
         if (ownership is { } o) query = query.Where(t => t.Vehicle.Ownership == o);
+
+        // Both date bounds are optional, so "export everything" is one click
+        // away, and every row carries seven includes plus its expense and
+        // amount lines. Counting first costs one cheap query and turns the
+        // only failure this report can suffer at scale — the server running
+        // out of memory part-way through building a PDF — into a sentence the
+        // user can act on. Nothing that fits under the ceiling behaves any
+        // differently, so this is a guard rail, not a limit on what the
+        // report can do.
+        var matching = await query.CountAsync();
+        if (matching > MaxRows)
+            throw new InvalidOperationException(
+                $"That covers {matching:N0} trips, which is more than one report can hold. " +
+                $"Narrow the dates — a financial year at a time works well — and try again.");
 
         return await query.OrderByDescending(t => t.Date).ToListAsync();
     }

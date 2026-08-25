@@ -55,6 +55,11 @@ async function whitenFlattenedCorners(source) {
 
 const cleanedMark = await whitenFlattenedCorners(mark);
 
+// Same quantisation as the web artwork below. These are manifest icons, so
+// they cost nothing on a page load — but they are what a phone downloads when
+// someone installs the app, and icon-512 alone was 237 KB.
+const ICON_PNG = { palette: true, quality: 80, colours: 128, compressionLevel: 9, effort: 10 };
+
 // The badge is already a finished app icon — its own background, border and
 // rounded corners — so it fills the tile rather than being inset on a
 // generated background the way a bare mark would be.
@@ -65,21 +70,31 @@ for (const [name, size] of Object.entries({
   'favicon-32.png': 32,
 })) {
   await sharp(cleanedMark).resize(size, size, { fit: 'cover' }).flatten({ background: '#ffffff' })
-    .png().toFile(`public/${name}`);
+    .png(ICON_PNG).toFile(`public/${name}`);
 }
 
 // Maskable: Android crops to its own shape, so the badge is inset into the
 // 80% safe zone on a white bleed — otherwise the crop clips its border.
 await sharp({ create: { width: 512, height: 512, channels: 4, background: '#ffffff' } })
   .composite([{ input: await sharp(cleanedMark).resize(410, 410, { fit: 'inside' }).toBuffer(), top: 51, left: 51 }])
-  .png().toFile('public/icon-maskable-512.png');
+  .png(ICON_PNG).toFile('public/icon-maskable-512.png');
 
 // Web copies of the artwork itself. The originals are over a megabyte, which
 // is real money on a phone connection — these are the sizes actually shown.
-await sharp(cleanedMark).resize({ width: 320 }).png({ quality: 90, compressionLevel: 9 })
+//
+// palette:true is doing the heavy lifting, not the quality number. Without it
+// these save as full-colour PNGs — 24 bits for every pixel of what is really a
+// flat illustration — and `quality` is ignored entirely, which is why the logo
+// sat at 198 KB. Quantised to 128 colours it is 41 KB, and measured against the
+// full-colour version at the size the browser actually paints it (576px for a
+// 288px slot on a 2x screen) the mean channel difference is 1.6/255. Dimensions
+// are unchanged, so nothing gets softer on a high-DPI phone.
+const WEB_PNG = { palette: true, quality: 80, colours: 128, compressionLevel: 9, effort: 10 };
+
+await sharp(cleanedMark).resize({ width: 320 }).png(WEB_PNG)
   .toFile('public/lorryowner-mark.png');
 
-await sharp(logo).trim().resize({ width: 900 }).png({ quality: 90, compressionLevel: 9 })
+await sharp(logo).trim().resize({ width: 900 }).png(WEB_PNG)
   .toFile('public/lorryowner-logo.png');
 
 console.log('Brand assets written to public/');

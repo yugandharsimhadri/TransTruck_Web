@@ -131,7 +131,12 @@ public class AppDbContext : DbContext
         b.Entity<Trip>(e =>
         {
             e.HasIndex(x => new { x.CompanyId, x.TripNo }).IsUnique();
-            e.HasIndex(x => x.Date);
+            // Composite and leading with CompanyId, because the global tenant
+            // filter puts CompanyId on every read of this table — SQLite picks
+            // one index per table per query, so a bare Date index makes it
+            // choose between seeking the date range and honouring the tenant
+            // filter, and it tests the other column row by row either way.
+            e.HasIndex(x => new { x.CompanyId, x.Date });
             e.HasOne(x => x.Vehicle).WithMany()
                 .HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Driver).WithMany()
@@ -163,7 +168,9 @@ public class AppDbContext : DbContext
 
         b.Entity<TripTransaction>(e =>
         {
-            e.HasIndex(x => x.ApprovalStatus);
+            // Same reasoning as Trips above: the approvals screen filters by
+            // status *within* a company, never across all of them.
+            e.HasIndex(x => new { x.CompanyId, x.ApprovalStatus });
         });
 
         b.Entity<VehicleMaintenance>(e =>

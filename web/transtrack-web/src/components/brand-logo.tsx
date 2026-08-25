@@ -22,8 +22,12 @@ export function BrandLogo({ className }: { className?: string }) {
       src="/lorryowner-logo.png"
       alt="LorryOwner — Drive, Manage, Grow"
       className={className}
+      // 900x573 is what gen-icons.mjs writes, after .trim() removes the
+      // source's whitespace. Declaring 600 here reserved a 3:2 box, then the
+      // decoded image came in at 1.571:1 and the sign-in card reflowed — a
+      // layout shift on the one screen every user starts on.
       width={900}
-      height={600}
+      height={573}
     />
   );
 }
