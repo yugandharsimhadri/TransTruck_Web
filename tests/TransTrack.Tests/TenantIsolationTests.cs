@@ -92,7 +92,7 @@ public class TenantIsolationTests
 
         // Fails safe to empty, never to "everything".
         Assert.Empty(await world.Trips.GetTripsAsync());
-        Assert.Empty(await world.Trips.GetTripListAsync());
+        Assert.Empty((await world.Trips.GetTripListAsync()).Items);
     }
 
     [Fact]

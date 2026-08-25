@@ -46,13 +46,62 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
     /// long list cheap on a phone: the sums become SQL subqueries, so no child
     /// collection is ever materialised.
     /// </summary>
-    public async Task<List<TripListItem>> GetTripListAsync()
+    /// <summary>The most rows one request will return, however large a `take`
+    /// asks for — the point of paging is that no single response can grow
+    /// without limit.</summary>
+    public const int MaxPageSize = 100;
+
+    public const int DefaultPageSize = 25;
+
+    /// <summary>One page of the trips list.
+    ///
+    /// Status, vehicle and sort are applied here rather than in the browser,
+    /// and that is the whole reason this method takes them. Filtering a page
+    /// client-side filters only the rows that page happens to contain: ask for
+    /// open trips when the most recent twenty-five are all closed and you get
+    /// an empty list next to a total that says otherwise. Every control the
+    /// list offers has to reach the database, or paging quietly starts lying.
+    ///
+    /// Every sort carries a tiebreaker for the same reason. Rows that compare
+    /// equal are otherwise free to come back in a different order per query,
+    /// which in a paged list means a row appearing on two pages while another
+    /// never appears at all.</summary>
+    public async Task<TripListPage> GetTripListAsync(
+        TripStatus? status = null,
+        string? regNo = null,
+        TripListSort sort = TripListSort.DateDesc,
+        int skip = 0,
+        int take = DefaultPageSize)
     {
         await using var db = await factory.CreateDbContextAsync();
 
-        return await db.Trips.AsNoTracking()
-            .Where(t => !t.IsDeleted)
-            .OrderByDescending(t => t.Date)
+        take = Math.Clamp(take, 1, MaxPageSize);
+        skip = Math.Max(0, skip);
+
+        var query = db.Trips.AsNoTracking().Where(t => !t.IsDeleted);
+
+        if (status is { } s) query = query.Where(t => t.Status == s);
+        if (!string.IsNullOrWhiteSpace(regNo)) query = query.Where(t => t.Vehicle.RegNo == regNo);
+
+        // Counted against the same filters, before paging — this is what tells
+        // the user there are more trips than the page in front of them.
+        var total = await query.CountAsync();
+
+        query = sort switch
+        {
+            TripListSort.DateAsc => query.OrderBy(t => t.Date).ThenBy(t => t.TripNo),
+            TripListSort.AmountDesc => query.OrderByDescending(t => t.Amount).ThenByDescending(t => t.Date).ThenBy(t => t.TripNo),
+            TripListSort.BalanceDesc => query
+                .OrderByDescending(t => t.Amount - (t.Transactions
+                    .Where(x => !x.IsDeleted && x.ApprovalStatus == ApprovalStatus.Approved)
+                    .Sum(x => (decimal?)x.Amount) ?? 0m))
+                .ThenByDescending(t => t.Date).ThenBy(t => t.TripNo),
+            _ => query.OrderByDescending(t => t.Date).ThenBy(t => t.TripNo),
+        };
+
+        var items = await query
+            .Skip(skip)
+            .Take(take)
             .Select(t => new TripListItem(
                 t.Id,
                 t.TripNo,
@@ -68,6 +117,8 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
                     .Sum(x => (decimal?)x.Amount) ?? 0m,
                 t.Status))
             .ToListAsync();
+
+        return new TripListPage(items, total);
     }
 
     public async Task<Trip?> GetTripAsync(Guid id)
@@ -258,6 +309,13 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
 /// <summary>One row of the trips list — flat, and only what that screen
 /// draws. Balance is derived here rather than stored so it can never drift
 /// from the two figures it comes from.</summary>
+public enum TripListSort { DateDesc, DateAsc, BalanceDesc, AmountDesc }
+
+/// <summary>A page of trips, and how many the filters match in total, so the
+/// list can say "25 of 312" rather than leaving the user guessing whether
+/// there is more behind it.</summary>
+public record TripListPage(IReadOnlyList<TripListItem> Items, int Total);
+
 public record TripListItem(
     Guid Id,
     string TripNo,

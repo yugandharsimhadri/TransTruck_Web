@@ -186,6 +186,16 @@ export interface Trip {
  * than the whole graph (vehicle, driver, party, cities, every expense and
  * amount) it sends for the detail screen.
  */
+export type TripListSort = "DateDesc" | "DateAsc" | "BalanceDesc" | "AmountDesc";
+
+/** One page of the trips list. `total` counts everything the current filters
+ *  match, not what came back in `items` — it is what lets the list say how
+ *  much is still behind the page you are looking at. */
+export interface TripListPage {
+  items: TripListItem[];
+  total: number;
+}
+
 export interface TripListItem {
   id: string;
   tripNo: string;

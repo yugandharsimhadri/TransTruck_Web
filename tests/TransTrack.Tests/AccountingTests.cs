@@ -179,7 +179,7 @@ public class AccountingTests
         await world.Transactions.ApproveAsync(txnId, world.UserId, null);
 
         var detail = await world.Trips.GetTripAsync(tripId);
-        var row = (await world.Trips.GetTripListAsync()).Single(t => t.Id == tripId);
+        var row = (await world.Trips.GetTripListAsync()).Items.Single(t => t.Id == tripId);
 
         // The list is a separate SQL projection from the detail's object
         // graph; if the two ever disagree the list is quietly lying.
@@ -201,7 +201,7 @@ public class AccountingTests
         await world.Trips.DeleteExpenseAsync(trip!.Expenses.First().Id);
         await world.Transactions.DeleteAsync(txnId);
 
-        var row = (await world.Trips.GetTripListAsync()).Single(t => t.Id == tripId);
+        var row = (await world.Trips.GetTripListAsync()).Items.Single(t => t.Id == tripId);
 
         Assert.Equal(0m, row.TotalExpenses);
         Assert.Equal(0m, row.TotalApprovedReceived);

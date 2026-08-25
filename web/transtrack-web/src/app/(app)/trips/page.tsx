@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { TripListItem, Vehicle } from "@/lib/types";
+import type { TripListPage, TripListSort, Vehicle } from "@/lib/types";
 import { Plus } from "lucide-react";
 import { TruckEmpty } from "@/components/truck-drive";
 
@@ -31,30 +31,52 @@ const sortLabels: Record<SortKey, string> = {
   "amount-desc": "Highest Trip Amount",
 };
 
+// The API sorts and filters now, so these controls have to speak its language.
+const sortParam: Record<SortKey, TripListSort> = {
+  "date-desc": "DateDesc",
+  "date-asc": "DateAsc",
+  "balance-desc": "BalanceDesc",
+  "amount-desc": "AmountDesc",
+};
+
+// A page has to be worth the round trip without being a wall of cards on a
+// phone. Twenty-five fills a tall screen roughly twice over.
+const PAGE_SIZE = 25;
+
 export default function TripsPage() {
   const [filter, setFilter] = useState<"open" | "closed" | "all">("open");
   const [regNo, setRegNo] = useState("");
   const [sort, setSort] = useState<SortKey>("date-desc");
 
-  const tripsQuery = useQuery({
-    queryKey: ["trips"],
-    queryFn: () => api.get<TripListItem[]>("/api/trips"),
+  // Filtering and sorting are the API's job now. They have to be: a filter
+  // applied here would only ever see the pages already fetched, so "Closed"
+  // over a run of open trips would show nothing and quietly mean it.
+  // Every control below is therefore part of the query key — change one and
+  // this starts again from the first page, which is also what the user
+  // expects to see.
+  const tripsQuery = useInfiniteQuery({
+    queryKey: ["trips", filter, regNo, sort],
+    initialPageParam: 0,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({
+        sort: sortParam[sort],
+        skip: String(pageParam),
+        take: String(PAGE_SIZE),
+      });
+      if (filter !== "all") params.set("status", filter === "open" ? "Open" : "Closed");
+      if (regNo) params.set("regNo", regNo);
+      return api.get<TripListPage>(`/api/trips?${params}`);
+    },
+    getNextPageParam: (last, pages) => {
+      const loaded = pages.reduce((n, p) => n + p.items.length, 0);
+      return loaded < last.total ? loaded : undefined;
+    },
   });
-  const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/api/vehicles") });
 
-  // Filtered and sorted on the client: the list is already fully loaded, and
-  // t.date is the trip's own date (not when the record was entered).
-  const trips = (tripsQuery.data ?? [])
-    .filter((t) => (filter === "all" ? true : filter === "open" ? t.status === "Open" : t.status === "Closed"))
-    .filter((t) => !regNo || t.vehicleRegNo === regNo)
-    .sort((a, b) => {
-      switch (sort) {
-        case "date-asc": return a.date.localeCompare(b.date);
-        case "balance-desc": return b.balanceReceivable - a.balanceReceivable;
-        case "amount-desc": return b.amount - a.amount;
-        default: return b.date.localeCompare(a.date);
-      }
-    });
+  const trips = tripsQuery.data?.pages.flatMap((p) => p.items) ?? [];
+  const total = tripsQuery.data?.pages[0]?.total ?? 0;
+
+  const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/api/vehicles") });
 
   return (
     <PageContainer className="space-y-4">
@@ -142,6 +164,28 @@ export default function TripsPage() {
             title="No trips here yet"
             hint="Book your first trip and it'll show up in this list."
           />
+        )}
+
+        {/* A full-width button rather than a numbered pager: on a phone this
+            sits under the thumb, needs no aiming, and never competes with the
+            bottom tab bar for the same corner of the screen. The count above
+            it answers the question a pager would have — how much is left. */}
+        {trips.length > 0 && (
+          <div className="flex flex-col items-center gap-2 pt-2">
+            <p className="text-xs text-muted-foreground" aria-live="polite">
+              Showing {trips.length} of {total} {total === 1 ? "trip" : "trips"}
+            </p>
+            {tripsQuery.hasNextPage && (
+              <Button
+                variant="outline"
+                className="h-11 w-full sm:w-auto sm:min-w-56"
+                onClick={() => tripsQuery.fetchNextPage()}
+                disabled={tripsQuery.isFetchingNextPage}
+              >
+                {tripsQuery.isFetchingNextPage ? "Loading…" : "Load more trips"}
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </PageContainer>

@@ -15,7 +15,13 @@ public class TripsController(TripService trips, MasterDataService masters, ICurr
     /// <summary>The trips list. Returns the flat list projection rather than
     /// the full object graph — see TripService.GetTripListAsync for why.</summary>
     [HttpGet]
-    public async Task<ActionResult<List<TripListItem>>> Get() => Ok(await trips.GetTripListAsync());
+    public async Task<ActionResult<TripListPage>> Get(
+        [FromQuery] TripStatus? status,
+        [FromQuery] string? regNo,
+        [FromQuery] TripListSort sort = TripListSort.DateDesc,
+        [FromQuery] int skip = 0,
+        [FromQuery] int take = TripService.DefaultPageSize)
+        => Ok(await trips.GetTripListAsync(status, regNo, sort, skip, take));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<Trip>> GetById(Guid id)
