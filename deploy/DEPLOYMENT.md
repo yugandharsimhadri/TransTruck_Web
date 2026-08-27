@@ -66,9 +66,64 @@ Two safety notes worth knowing:
 
 ---
 
+## 1a. Moving the installation to another drive
+
+Everything the app writes hangs off one root, `C:\TransTruckWeb` by default.
+Point `TRANSTRUCKWEB_ROOT` at a different folder and the deploy scripts *and*
+the API both follow it, so the executable and the data stay together:
+
+| What | Where | Set by |
+| --- | --- | --- |
+| Executable | `<root>\publish` | `-Root` / `TRANSTRUCKWEB_ROOT` |
+| JWT signing key | `<root>\secrets\jwt.key` | `-Root` / `TRANSTRUCKWEB_ROOT` |
+| Database | `<root>\DB\TransTruckWeb.db` | `DataRoot`, or `DatabasePath` |
+| Backups | `<root>\DBBackup` | `DataRoot`, or `BackupDirectory` |
+| Documents | `<root>\VehicleDocs` | `DataRoot`, or `VehicleDocumentDirectory` |
+| Logs | `C:\ProgramData\TransTrack\logs` | `LogDirectory` only — see below |
+
+Logs deliberately do **not** move with the root. The log is what you read when
+the data drive is the thing that failed, so it stays on the system drive
+unless you set `LogDirectory` explicitly.
+
+To move to `E:\LorryOwner`:
+
+```powershell
+# 1. Stop the API.
+
+# 2. Copy the existing data across. Nothing moves it for you, and the
+#    database and its documents must travel together — a database restored
+#    without its documents leaves rows pointing at files that aren't there.
+robocopy C:\TransTruckWeb E:\LorryOwner /E /COPYALL
+
+# 3. Point everything at the new root, for this session and for good.
+$env:TRANSTRUCKWEB_ROOT = "E:\LorryOwner"
+[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_ROOT", "E:\LorryOwner", "Machine")
+
+# 4. Republish and run against it.
+.\deploy\publish-api.ps1 -Root E:\LorryOwner
+.\deploy\run-api.ps1     -Root E:\LorryOwner
+```
+
+The startup line prints the root in use — check it says `E:\LorryOwner`
+before signing in. Once you are satisfied, the old `C:\TransTruckWeb` can be
+archived and removed.
+
+Alternatively, set `"DataRoot": "E:\\LorryOwner"` in
+`appsettings.Production.json` (note the doubled backslashes) — that moves the
+database, backups and documents but *not* the executable or signing key, so
+you would still pass `-Root` to the scripts. Setting one individual path
+overrides the root for that folder only, which is how you put a large
+documents folder on a second disk while the database stays on a fast one.
+
+If the drive isn't mounted, both scripts stop with a plain message naming it
+rather than failing partway through.
+
+---
+
 ## 2. API (backend)
 
-Deployable: `C:\TransTruckWeb\publish` (already rebuilt for this release).
+Deployable: `<root>\publish` — `C:\TransTruckWeb\publish` unless you moved it
+(see 1a above). Already rebuilt for this release.
 
 ```powershell
 # From the repo root, if you need to rebuild it:

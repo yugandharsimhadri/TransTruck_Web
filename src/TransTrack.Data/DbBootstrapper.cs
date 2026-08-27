@@ -57,11 +57,9 @@ public static class DbBootstrapper
         }
     }
 
-    private static string DefaultRoot(string leaf)
-    {
-        var root = Path.Combine(Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\", "TransTruckWeb");
-        return Path.Combine(root, leaf);
-    }
+    /// <summary>Resolved centrally so the database, its backups and the
+    /// uploaded documents all move together when DataRoot changes.</summary>
+    private static string DefaultRoot(string leaf) => AppPaths.Under(leaf);
 
     /// <summary>
     /// The desktop app opened this database from a single process with one

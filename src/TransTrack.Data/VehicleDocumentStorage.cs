@@ -50,7 +50,7 @@ public class FileSystemDocumentStorage : IDocumentStorage
             if (string.IsNullOrWhiteSpace(configured)) configured = AppConfig.Current.VehicleDocumentDirectory;
 
             var dir = string.IsNullOrWhiteSpace(configured)
-                ? Path.Combine(Path.GetPathRoot(Environment.SystemDirectory) ?? "C:\\", "TransTruckWeb", "VehicleDocs")
+                ? AppPaths.Under("VehicleDocs")
                 : configured;
 
             Directory.CreateDirectory(dir);

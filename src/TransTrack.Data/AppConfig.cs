@@ -5,10 +5,19 @@ namespace TransTrack.Data;
 /// <summary>Settings read from appsettings.json beside the executable.</summary>
 public class AppSettings
 {
+    /// <summary>The folder the database, backups and uploaded documents
+    /// default to subfolders of. Null uses C:\TransTruckWeb (strictly, the
+    /// system drive). Set this to move the whole installation to another
+    /// drive in one edit; set the individual paths below to override any of
+    /// them separately. Moving a path does not move existing files — copy
+    /// them across first, then change the setting.</summary>
+    public string? DataRoot { get; set; }
+
     /// <summary>Where the daily log files are written.</summary>
     public string? LogDirectory { get; set; }
 
-    /// <summary>Full path to the database file. Null uses the default under C:\TransTrack.</summary>
+    /// <summary>Full path to the database file, including the file name. Null
+    /// uses DB\TransTruckWeb.db under <see cref="DataRoot"/>.</summary>
     public string? DatabasePath { get; set; }
 
     /// <summary>Where daily database backups are written.</summary>
