@@ -31,21 +31,6 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         // every caller orders explicitly.
         .AsSplitQuery();
 
-    public async Task<List<Trip>> GetTripsAsync()
-    {
-        await using var db = await factory.CreateDbContextAsync();
-        return await WithDetails(db).AsNoTracking().Where(t => !t.IsDeleted).OrderByDescending(t => t.Date).ToListAsync();
-    }
-
-    /// <summary>
-    /// The trips list, as a flat projection of just the columns that screen
-    /// actually renders. <see cref="GetTripsAsync"/> returns the whole object
-    /// graph — vehicle, driver, party, both cities and every expense and
-    /// amount row — which is right for the detail screen and roughly 6 KB per
-    /// trip on the wire for a list that shows nine short fields. This keeps a
-    /// long list cheap on a phone: the sums become SQL subqueries, so no child
-    /// collection is ever materialised.
-    /// </summary>
     /// <summary>The most rows one request will return, however large a `take`
     /// asks for — the point of paging is that no single response can grow
     /// without limit.</summary>
@@ -53,7 +38,13 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
 
     public const int DefaultPageSize = 25;
 
-    /// <summary>One page of the trips list.
+    /// <summary>One page of the trips list, as a flat projection of just the
+    /// columns that screen actually renders. <see cref="GetTripAsync"/>
+    /// returns the whole object graph — vehicle, driver, party, both cities
+    /// and every expense and amount row — which is right for the detail
+    /// screen and roughly 6 KB per trip on the wire for a list that shows
+    /// nine short fields. This keeps a long list cheap on a phone: the sums
+    /// become SQL subqueries, so no child collection is ever materialised.
     ///
     /// Status, vehicle and sort are applied here rather than in the browser,
     /// and that is the whole reason this method takes them. Filtering a page

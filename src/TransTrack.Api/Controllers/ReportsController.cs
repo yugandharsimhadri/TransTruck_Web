@@ -40,16 +40,7 @@ public class ReportsController(ReportsService reports, MasterDataService masters
     [HttpGet("party")]
     public async Task<ActionResult<PartyReport>> GetPartyReport(
         [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
-    {
-        try
-        {
-            return Ok(await reports.GetPartyReportAsync(partyId, from, to));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+        => Ok(await reports.GetPartyReportAsync(partyId, from, to));
 
     [HttpGet("vehicle-savings")]
     public async Task<ActionResult<List<VehicleMonthlySaving>>> GetVehicleSavings(
@@ -123,33 +114,19 @@ public class ReportsController(ReportsService reports, MasterDataService masters
     public async Task<IActionResult> ExportPartyPdf(
         [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
-        try
-        {
-            var report = await reports.GetPartyReportAsync(partyId, from, to);
-            var company = await masters.GetCompanyAsync();
-            var pdf = ReportPdfBuilder.BuildPartyReport(report, company);
-            return File(pdf, "application/pdf", $"{Slug(report.PartyName)}-report.pdf");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var report = await reports.GetPartyReportAsync(partyId, from, to);
+        var company = await masters.GetCompanyAsync();
+        var pdf = ReportPdfBuilder.BuildPartyReport(report, company);
+        return File(pdf, "application/pdf", $"{Slug(report.PartyName)}-report.pdf");
     }
 
     [HttpGet("party/export.xlsx")]
     public async Task<IActionResult> ExportPartyExcel(
         [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
     {
-        try
-        {
-            var report = await reports.GetPartyReportAsync(partyId, from, to);
-            var xlsx = ReportExcelBuilder.BuildPartyReport(report);
-            return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{Slug(report.PartyName)}-report.xlsx");
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var report = await reports.GetPartyReportAsync(partyId, from, to);
+        var xlsx = ReportExcelBuilder.BuildPartyReport(report);
+        return File(xlsx, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"{Slug(report.PartyName)}-report.xlsx");
     }
 
     [HttpGet("vehicle-savings/export.pdf")]

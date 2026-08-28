@@ -5,8 +5,18 @@ namespace TransTrack.Data;
 
 public class TripTransactionService(IDbContextFactory<AppDbContext> factory)
 {
+    /// <summary>Capped, not refused: unlike a report export, an Owner facing
+    /// a stalled approvals queue has no date range to narrow — a flat "too
+    /// many, try again" would strand them, unable to see or clear any of it.
+    /// Set far above what an attended queue ever reaches (pending items leave
+    /// this list as they're approved or rejected, so a normal backlog is
+    /// self-limiting); this exists purely to stop an unattended queue from
+    /// growing without bound rather than to shape everyday use.</summary>
+    public const int MaxPending = 1000;
+
     /// <summary>Every pending transaction, across every trip — what the
-    /// Owner-only Approvals screen lists.</summary>
+    /// Owner-only Approvals screen lists. Oldest first, so the longest-waiting
+    /// amount is always the one at the top of an over-the-cap queue.</summary>
     public async Task<List<TripTransaction>> GetPendingAsync()
     {
         await using var db = await factory.CreateDbContextAsync();
@@ -15,6 +25,7 @@ public class TripTransactionService(IDbContextFactory<AppDbContext> factory)
             .Include(t => t.Trip).ThenInclude(t => t.Party)
             .Where(t => t.ApprovalStatus == ApprovalStatus.Pending && !t.IsDeleted)
             .OrderBy(t => t.Date)
+            .Take(MaxPending)
             .ToListAsync();
     }
 

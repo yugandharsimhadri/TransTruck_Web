@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using TransTrack.Api.Auth;
 using TransTrack.Core;
 using TransTrack.Data;
@@ -34,20 +35,17 @@ public class AuthController(
     /// → forced-password-change path exactly as an onboarded owner does.</summary>
     [HttpPost("register")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<RegisterResponse>> Register(RegisterRequest request)
     {
-        try
-        {
-            var result = await registration.RegisterAsync(request.CompanyName, request.Phone, request.Password);
-            return Ok(new RegisterResponse(
-                result.Username,
-                result.CompanyName,
-                "Registered. Sign in with your phone number — you'll be asked to set a new password."));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        // A broken business rule here (name already taken, invalid phone,
+        // ...) reaches ApiExceptionHandler and comes back as the same 400 +
+        // message this used to build by hand.
+        var result = await registration.RegisterAsync(request.CompanyName, request.Phone, request.Password);
+        return Ok(new RegisterResponse(
+            result.Username,
+            result.CompanyName,
+            "Registered. Sign in with your phone number — you'll be asked to set a new password."));
     }
 
     public record LoginResponse(
@@ -56,6 +54,7 @@ public class AuthController(
 
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<LoginResponse>> Login(LoginRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
@@ -105,6 +104,7 @@ public class AuthController(
     /// round trip through /login.</summary>
     [HttpPost("change-password")]
     [Authorize(Policy = Policies.ChangePasswordToken)]
+    [EnableRateLimiting("auth")]
     public async Task<ActionResult<LoginResponse>> ChangePassword(ChangePasswordRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.NewPassword) || request.NewPassword.Length < 8)
@@ -137,7 +137,7 @@ public class AuthController(
     public async Task<ActionResult<MeResponse>> Me()
     {
         var userId = Guid.Parse(User.FindFirstValue(JwtRegisteredClaimNames.Sub)!);
-        var user = (await auth.GetUsersAsync()).FirstOrDefault(u => u.Id == userId);
+        var user = await auth.GetUserAsync(userId);
         if (user is null) return Unauthorized();
 
         var company = await masters.GetCompanyAsync();

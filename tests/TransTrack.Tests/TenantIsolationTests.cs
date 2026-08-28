@@ -42,7 +42,7 @@ public class TenantIsolationTests
 
         // Back as our own company: the rival's trip must be invisible.
         world.CurrentUser.CompanyId = world.CompanyId;
-        var ours = await world.Trips.GetTripsAsync();
+        var ours = (await world.Trips.GetTripListAsync()).Items;
 
         Assert.Single(ours);
         Assert.DoesNotContain(ours, t => t.TripNo == "TRP99999");
@@ -91,7 +91,6 @@ public class TenantIsolationTests
         world.CurrentUser.CompanyId = null;
 
         // Fails safe to empty, never to "everything".
-        Assert.Empty(await world.Trips.GetTripsAsync());
         Assert.Empty((await world.Trips.GetTripListAsync()).Items);
     }
 

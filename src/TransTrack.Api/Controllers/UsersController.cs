@@ -41,23 +41,16 @@ public class UsersController(AuthService auth) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Save(SaveUserRequest request)
     {
-        try
-        {
-            await auth.SaveUserAsync(
-                new User
-                {
-                    Id = request.Id,
-                    Username = request.Username,
-                    DisplayName = request.DisplayName,
-                    Role = request.Role,
-                    IsActive = request.IsActive,
-                },
-                request.NewPassword);
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await auth.SaveUserAsync(
+            new User
+            {
+                Id = request.Id,
+                Username = request.Username,
+                DisplayName = request.DisplayName,
+                Role = request.Role,
+                IsActive = request.IsActive,
+            },
+            request.NewPassword);
+        return Ok();
     }
 }

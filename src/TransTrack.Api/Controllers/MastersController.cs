@@ -42,20 +42,13 @@ public class MastersController(MasterDataService masters) : ControllerBase
     public async Task<ActionResult<List<Owner>>> GetOwners() => Ok(await masters.GetOwnersAsync());
 
     [HttpPost("owners")]
-    public async Task<IActionResult> SaveOwner(Owner owner)
-    {
-        try { return Ok(await masters.SaveOwnerAsync(owner)); }
-        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
-    }
+    public async Task<IActionResult> SaveOwner(Owner owner) => Ok(await masters.SaveOwnerAsync(owner));
 
     public record OwnerBasicRequest(Guid? ExistingOwnerId, string Name, string? Phone);
 
     [HttpPost("owners/basic")]
     public async Task<IActionResult> SaveOwnerBasic(OwnerBasicRequest request)
-    {
-        try { return Ok(await masters.SaveOwnerBasicAsync(request.ExistingOwnerId, request.Name, request.Phone)); }
-        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
-    }
+        => Ok(await masters.SaveOwnerBasicAsync(request.ExistingOwnerId, request.Name, request.Phone));
 
     [HttpDelete("owners/{id:guid}")]
     public async Task<IActionResult> DeleteOwner(Guid id) { await masters.DeleteOwnerAsync(id); return NoContent(); }
@@ -66,11 +59,7 @@ public class MastersController(MasterDataService masters) : ControllerBase
     public async Task<ActionResult<List<Party>>> GetParties() => Ok(await masters.GetPartiesAsync());
 
     [HttpPost("parties")]
-    public async Task<IActionResult> SaveParty(Party party)
-    {
-        try { return Ok(await masters.SavePartyAsync(party)); }
-        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
-    }
+    public async Task<IActionResult> SaveParty(Party party) => Ok(await masters.SavePartyAsync(party));
 
     [HttpDelete("parties/{id:guid}")]
     public async Task<IActionResult> DeleteParty(Guid id) { await masters.DeletePartyAsync(id); return NoContent(); }
@@ -115,8 +104,8 @@ public class MastersController(MasterDataService masters) : ControllerBase
     [Authorize(Policy = Policies.ManageSettings)]
     public async Task<IActionResult> SaveCompanySettings(Company settings)
     {
-        try { await masters.SaveCompanyAsync(settings); return Ok(); }
-        catch (InvalidOperationException ex) { return BadRequest(new { message = ex.Message }); }
+        await masters.SaveCompanyAsync(settings);
+        return Ok();
     }
 
     public record ThemeRequest(AppThemeKind Theme);

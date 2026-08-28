@@ -163,4 +163,44 @@ public class ApprovalTests
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => world.Transactions.ApproveAsync(Guid.NewGuid(), world.UserId, null));
     }
+
+    /// <summary>An unattended queue is capped rather than growing without
+    /// bound in memory — but capped is not refused: an Owner facing a huge
+    /// backlog still needs to see (and start clearing) the oldest items,
+    /// which is why this keeps the earliest MaxPending rather than erroring
+    /// out the whole screen the way a report export does.</summary>
+    [Fact]
+    public async Task An_oversized_pending_queue_is_capped_at_the_oldest_entries()
+    {
+        await using var world = await TestWorld.CreateAsync();
+        var tripId = await world.BookTripAsync(amount: 1_000_000);
+
+        // Seeded directly rather than through AddAmountAsync one at a time —
+        // that would mean TripTransactionService.MaxPending + 1 real service
+        // calls just to set up one test. The rule under test only cares that
+        // the rows exist and are Pending, not how they got there.
+        await using (var db = await world.Factory.CreateDbContextAsync())
+        {
+            var baseDate = new DateTime(2020, 1, 1);
+            var rows = Enumerable.Range(0, TripTransactionService.MaxPending + 1)
+                .Select(i => new TripTransaction
+                {
+                    CompanyId = world.CompanyId,
+                    TripId = tripId,
+                    Date = baseDate.AddDays(i),
+                    Amount = 1,
+                    ApprovalStatus = ApprovalStatus.Pending,
+                })
+                .ToList();
+            db.TripTransactions.AddRange(rows);
+            await db.SaveChangesAsync();
+        }
+
+        var pending = await world.Transactions.GetPendingAsync();
+
+        Assert.Equal(TripTransactionService.MaxPending, pending.Count);
+        // Oldest-first and capped means the very last one seeded (the
+        // newest) is exactly the one that should have been dropped.
+        Assert.DoesNotContain(pending, t => t.Date == new DateTime(2020, 1, 1).AddDays(TripTransactionService.MaxPending));
+    }
 }

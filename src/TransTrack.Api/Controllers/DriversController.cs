@@ -15,18 +15,9 @@ public class DriversController(DriverService drivers, DocumentService documents)
 
     [HttpPost]
     public async Task<IActionResult> Save(Driver driver)
-    {
-        try
-        {
-            // The id comes back so the form can stay open on a newly created
-            // driver and offer its document upload straight away.
-            return Ok(await drivers.SaveDriverAsync(driver));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+        // The id comes back so the form can stay open on a newly created
+        // driver and offer its document upload straight away.
+        => Ok(await drivers.SaveDriverAsync(driver));
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
@@ -50,17 +41,10 @@ public class DriversController(DriverService drivers, DocumentService documents)
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Choose a file to upload." });
 
-        try
-        {
-            await using var stream = file.OpenReadStream();
-            await documents.AddAsync(DocumentOwnerKind.Driver, id, documentType,
-                file.FileName, file.ContentType ?? "application/octet-stream", stream, file.Length);
+        await using var stream = file.OpenReadStream();
+        await documents.AddAsync(DocumentOwnerKind.Driver, id, documentType,
+            file.FileName, file.ContentType ?? "application/octet-stream", stream, file.Length);
 
-            return Ok(await documents.ListAsync(DocumentOwnerKind.Driver, id));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(await documents.ListAsync(DocumentOwnerKind.Driver, id));
     }
 }

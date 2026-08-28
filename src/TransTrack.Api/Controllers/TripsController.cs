@@ -33,15 +33,8 @@ public class TripsController(TripService trips, MasterDataService masters, ICurr
     [HttpPost]
     public async Task<IActionResult> Save(Trip trip)
     {
-        try
-        {
-            var id = await trips.SaveTripAsync(trip);
-            return Ok(await trips.GetTripAsync(id));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var id = await trips.SaveTripAsync(trip);
+        return Ok(await trips.GetTripAsync(id));
     }
 
     /// <summary>Cancelling a trip. Owner-only, deliberately: a trip carries
@@ -62,31 +55,17 @@ public class TripsController(TripService trips, MasterDataService masters, ICurr
     [HttpPost("{id:guid}/expenses")]
     public async Task<IActionResult> AddExpense(Guid id, TripExpense expense)
     {
-        try
-        {
-            await trips.AddExpenseAsync(id, expense);
-            return Ok(await trips.GetTripAsync(id));
-        }
-        catch (InvalidOperationException ex)
-        {
-            // Notably the closed-trip refusal: the user needs to be told to
-            // reopen the trip, not handed a 500.
-            return BadRequest(new { message = ex.Message });
-        }
+        // Notably the closed-trip refusal: ApiExceptionHandler turns it into
+        // a 400 with the message telling the user to reopen the trip, not a 500.
+        await trips.AddExpenseAsync(id, expense);
+        return Ok(await trips.GetTripAsync(id));
     }
 
     [HttpDelete("expenses/{expenseId:guid}")]
     public async Task<IActionResult> DeleteExpense(Guid expenseId)
     {
-        try
-        {
-            await trips.DeleteExpenseAsync(expenseId);
-            return NoContent();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await trips.DeleteExpenseAsync(expenseId);
+        return NoContent();
     }
 
     // ── Printing numbers ──────────────────────────────────────────────────

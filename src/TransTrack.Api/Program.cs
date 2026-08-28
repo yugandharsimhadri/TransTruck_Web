@@ -1,10 +1,15 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using TransTrack.Api.Auth;
+using TransTrack.Core;
 using TransTrack.Data;
 
 QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -12,7 +17,7 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 var builder = WebApplication.CreateBuilder(args);
 
 // The production deployment sits behind a Cloudflare Tunnel: Cloudflare
-// terminates TLS at its edge (https://ttapi.sivayaantechnologies.com) and
+// terminates TLS at its edge (https://loapi.lorryowner.com) and
 // cloudflared forwards plain HTTP to this process on localhost:6041. Without
 // trusting the forwarded headers, Kestrel would see every request as
 // insecure HTTP — breaking the Secure cookie flag and turning
@@ -132,6 +137,38 @@ builder.Services.AddCors(options =>
         .AllowCredentials());
 });
 
+// Login, registration and password-change are the one place an anonymous
+// caller can make this process do real work — each hashes a password with
+// 100,000 PBKDF2 iterations, so an unbounded rate of calls is both a
+// brute-force vector and a cheap way to burn CPU. Partitioned per client IP
+// (reliable here: ForwardedHeaders below rewrites RemoteIpAddress from
+// X-Forwarded-For, and nothing reaches this process except through the
+// Cloudflare Tunnel, so the header can't be forged by an outside caller).
+// Fixed window rather than sliding: simpler to reason about, and the
+// difference only matters at a precision no attacker here needs to care
+// about. No queueing — a queued login attempt just adds latency, not safety.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        context.HttpContext.Response.ContentType = "application/json";
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            new { message = "Too many attempts. Wait a minute and try again." },
+            cancellationToken);
+    };
+
+    options.AddPolicy("auth", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+});
+
 builder.Services.AddControllers()
     .AddJsonOptions(o =>
     {
@@ -211,12 +248,17 @@ app.UseCors();
 
 app.UseAuthentication();
 
-// A full-session token stays valid (per its own expiry) for up to
-// Jwt:FullSessionHours regardless of what happens to the company's license
-// in the meantime — EnterpriseAdmin deactivating a company or a license
-// lapsing mid-session must take effect immediately, not just on the next
-// login. One extra lookup per authenticated request is cheap at this app's
-// scale (small trucking companies, not high QPS).
+// A full-session token stays valid (per its own expiry, up to
+// Jwt:FullSessionHours — 12 by default) regardless of what happens to the
+// company or the user in the meantime. The token's role/company claims are
+// stamped at login and never re-read from the database by the JWT handler
+// itself, so without this check a user demoted, deactivated, or removed
+// stays exactly as privileged as they were the moment they signed in, for
+// up to 12 hours or until they explicitly log out — neither of which an
+// Owner acting right now can force. Two point-lookups (indexed, by primary
+// key) per authenticated request is cheap at this app's scale (small
+// trucking companies, not high QPS) — the same tradeoff already accepted
+// for the company license check below.
 app.Use(async (context, next) =>
 {
     var isFullSession = context.User.Identity?.IsAuthenticated == true
@@ -224,11 +266,12 @@ app.Use(async (context, next) =>
 
     if (isFullSession)
     {
+        var factory = context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>();
+        await using var db = await factory.CreateDbContextAsync();
+
         var companyIdClaim = context.User.FindFirst(TokenTypes.CompanyIdClaimType)?.Value;
         if (Guid.TryParse(companyIdClaim, out var companyId))
         {
-            var factory = context.RequestServices.GetRequiredService<IDbContextFactory<AppDbContext>>();
-            await using var db = await factory.CreateDbContextAsync();
             var valid = await db.Companies.AsNoTracking()
                 .Where(c => c.Id == companyId)
                 .Select(c => c.IsActive && DateTime.UtcNow <= c.LicenseExpiresOn)
@@ -244,12 +287,42 @@ app.Use(async (context, next) =>
                 return;
             }
         }
+
+        // The user themselves: still active, and still the role their token
+        // claims. IgnoreQueryFilters because CurrentCompanyId already comes
+        // off this same token's claim — filtering again on top of an
+        // explicit u.CompanyId == companyId match would be redundant, not
+        // wrong, but this reads plainly as "this exact user row" rather than
+        // leaning on the ambient filter to imply it.
+        var userIdClaim = context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
+        if (Guid.TryParse(userIdClaim, out var userId))
+        {
+            var current = await db.Users.IgnoreQueryFilters().AsNoTracking()
+                .Where(u => u.Id == userId && u.CompanyId == companyId && !u.IsDeleted)
+                .Select(u => new { u.IsActive, Role = u.Role.ToString() })
+                .FirstOrDefaultAsync();
+
+            var claimedRole = context.User.FindFirst(ClaimTypes.Role)?.Value;
+            var stillValid = current is { IsActive: true } && current.Role == claimedRole;
+
+            if (!stillValid)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    message = "Your account no longer has access. Sign in again."
+                });
+                return;
+            }
+        }
     }
 
     await next();
 });
 
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 

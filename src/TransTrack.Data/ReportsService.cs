@@ -57,13 +57,23 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
         // user can act on. Nothing that fits under the ceiling behaves any
         // differently, so this is a guard rail, not a limit on what the
         // report can do.
-        var matching = await query.CountAsync();
-        if (matching > MaxRows)
-            throw new InvalidOperationException(
-                $"That covers {matching:N0} trips, which is more than one report can hold. " +
-                $"Narrow the dates — a financial year at a time works well — and try again.");
+        EnsureUnderRowLimit(await query.CountAsync(), "trips");
 
         return await query.OrderByDescending(t => t.Date).ToListAsync();
+    }
+
+    /// <summary>The guard rail every report below shares: count before
+    /// materialising, so the only failure an unbounded "everything, ever"
+    /// query can cause is a sentence the user can act on, not the server
+    /// running out of memory part-way through building a PDF. Nothing that
+    /// fits under <see cref="MaxRows"/> behaves any differently — this never
+    /// limits what a report can hold, only how much one request can build.</summary>
+    private static void EnsureUnderRowLimit(int matching, string subject)
+    {
+        if (matching > MaxRows)
+            throw new InvalidOperationException(
+                $"That covers {matching:N0} {subject}, which is more than one report can hold. " +
+                "Narrow the dates — a financial year at a time works well — and try again.");
     }
 
     public async Task<List<VehicleMaintenance>> GetMaintenanceAsync(Guid? vehicleId, DateTime? from, DateTime? to)
@@ -128,6 +138,10 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
             incomeQuery = incomeQuery.Where(t => t.Trip.Vehicle.Ownership == o);
         }
 
+        // One ledger, two source tables — the row count that matters is both
+        // combined, since that's what ends up in memory together below.
+        EnsureUnderRowLimit(await expenseQuery.CountAsync() + await incomeQuery.CountAsync(), "ledger lines");
+
         var expenses = await expenseQuery.ToListAsync();
         var income = await incomeQuery.ToListAsync();
 
@@ -165,6 +179,8 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
 
         if (from is { } f) query = query.Where(t => t.Date >= f.Date);
         if (to is { } t2) query = query.Where(t => t.Date <= t2.Date);
+
+        EnsureUnderRowLimit(await query.CountAsync(), $"trips for {party.Name}");
 
         var trips = await query.OrderBy(t => t.Date).ThenBy(t => t.TripNo).ToListAsync();
 
@@ -225,6 +241,10 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
             tripQuery = tripQuery.Where(t => t.Date <= t2.Date);
             maintenanceQuery = maintenanceQuery.Where(m => m.Date <= t2.Date);
         }
+
+        // Same combined-count reasoning as the ledger above: both queries
+        // end up in memory together to build the per-vehicle buckets.
+        EnsureUnderRowLimit(await tripQuery.CountAsync() + await maintenanceQuery.CountAsync(), "trip and maintenance records");
 
         var trips = await tripQuery.ToListAsync();
         var maintenance = await maintenanceQuery.ToListAsync();

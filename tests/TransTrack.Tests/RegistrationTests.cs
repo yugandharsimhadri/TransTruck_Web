@@ -89,7 +89,7 @@ public class RegistrationTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.RegisterAsync("Duplicate Transport", "9123456784", null));
 
-        Assert.Contains("already registered", ex.Message);
+        Assert.Contains("sign in instead", ex.Message);
     }
 
     /// <summary>The login *is* the phone number, so a second company on a
@@ -106,7 +106,31 @@ public class RegistrationTests
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(
             () => service.RegisterAsync("Second Transport", "9123456785", null));
 
-        Assert.Contains("already registered", ex.Message);
+        Assert.Contains("sign in instead", ex.Message);
+    }
+
+    /// <summary>The security property the merge is actually for: before this,
+    /// an anonymous caller could tell "this phone has an account under a
+    /// different company name" apart from "this exact company+phone pair is
+    /// registered" by reading which of two different messages came back —
+    /// effectively probing arbitrary phone numbers one at a time. A single
+    /// message for both collisions closes that specific oracle (though not
+    /// the weaker fail/succeed signal registration inherently carries — see
+    /// the comment in RegistrationService.RegisterAsync).</summary>
+    [Fact]
+    public async Task Both_kinds_of_collision_produce_the_same_message()
+    {
+        await using var world = await TestWorld.CreateAsync();
+        var service = ServiceFor(world);
+
+        await service.RegisterAsync("Original Transport", "9123456787", null);
+
+        var sameNameAndPhone = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RegisterAsync("Original Transport", "9123456787", null));
+        var phoneOnlyMatch = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => service.RegisterAsync("A Completely Different Name", "9123456787", null));
+
+        Assert.Equal(sameNameAndPhone.Message, phoneOnlyMatch.Message);
     }
 
     [Theory]
@@ -158,7 +182,7 @@ public class RegistrationTests
         world.CurrentUser.CompanyId = registered.CompanyId;
         world.CurrentUser.UserId = null;
 
-        var trips = await world.Trips.GetTripsAsync();
-        Assert.Empty(trips);
+        var trips = await world.Trips.GetTripListAsync();
+        Assert.Empty(trips.Items);
     }
 }

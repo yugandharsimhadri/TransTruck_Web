@@ -106,6 +106,15 @@ public class AuthService(IDbContextFactory<AppDbContext> factory, ICurrentUserCo
             .ToListAsync();
     }
 
+    /// <summary>One user by id — for the "who am I" check on every page load,
+    /// which only ever needs the caller's own row, not the whole company
+    /// list to filter client-side.</summary>
+    public async Task<User?> GetUserAsync(Guid userId)
+    {
+        await using var db = await factory.CreateDbContextAsync();
+        return await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+    }
+
     /// <summary>Creates a user, or updates one when <paramref name="user"/>.Id
     /// matches an existing row. A new user always needs a password; an
     /// existing one keeps its current password unless <paramref name="newPassword"/>

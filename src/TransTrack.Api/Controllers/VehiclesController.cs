@@ -15,18 +15,9 @@ public class VehiclesController(VehicleService vehicles, DocumentService documen
 
     [HttpPost]
     public async Task<IActionResult> Save(Vehicle vehicle)
-    {
-        try
-        {
-            // The id comes back so the form can stay open on a newly created
-            // vehicle and offer its document upload straight away.
-            return Ok(await vehicles.SaveVehicleAsync(vehicle));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
-    }
+        // The id comes back so the form can stay open on a newly created
+        // vehicle and offer its document upload straight away.
+        => Ok(await vehicles.SaveVehicleAsync(vehicle));
 
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> Delete(Guid id)
@@ -51,17 +42,10 @@ public class VehiclesController(VehicleService vehicles, DocumentService documen
         if (file is null || file.Length == 0)
             return BadRequest(new { message = "Choose a file to upload." });
 
-        try
-        {
-            await using var stream = file.OpenReadStream();
-            await documents.AddAsync(DocumentOwnerKind.Vehicle, id, documentType,
-                file.FileName, file.ContentType ?? "application/octet-stream", stream, file.Length);
+        await using var stream = file.OpenReadStream();
+        await documents.AddAsync(DocumentOwnerKind.Vehicle, id, documentType,
+            file.FileName, file.ContentType ?? "application/octet-stream", stream, file.Length);
 
-            return Ok(await documents.ListAsync(DocumentOwnerKind.Vehicle, id));
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        return Ok(await documents.ListAsync(DocumentOwnerKind.Vehicle, id));
     }
 }

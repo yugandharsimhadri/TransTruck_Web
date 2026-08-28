@@ -24,16 +24,9 @@ public class EnterpriseController(EnterpriseAdminService enterprise) : Controlle
     [HttpPost("companies")]
     public async Task<IActionResult> Onboard(OnboardRequest request)
     {
-        try
-        {
-            var result = await enterprise.OnboardCompanyAsync(
-                request.CompanyName, request.OwnerName, request.OwnerPhone, request.LicenseMonths);
-            return Ok(result);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var result = await enterprise.OnboardCompanyAsync(
+            request.CompanyName, request.OwnerName, request.OwnerPhone, request.LicenseMonths);
+        return Ok(result);
     }
 
     [HttpGet("companies")]
@@ -49,15 +42,8 @@ public class EnterpriseController(EnterpriseAdminService enterprise) : Controlle
     [HttpPost("companies/{companyId:guid}/users/{userId:guid}/reset-password")]
     public async Task<IActionResult> ResetPassword(Guid companyId, Guid userId, ResetPasswordRequest request)
     {
-        try
-        {
-            var username = await enterprise.ResetUserPasswordAsync(companyId, userId, request.TemporaryPassword);
-            return Ok(new { message = $"Password for '{username}' has been reset. They must change it on next sign-in." });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var username = await enterprise.ResetUserPasswordAsync(companyId, userId, request.TemporaryPassword);
+        return Ok(new { message = $"Password for '{username}' has been reset. They must change it on next sign-in." });
     }
 
     public record ChangeUsernameRequest(string NewPhone);
@@ -68,15 +54,8 @@ public class EnterpriseController(EnterpriseAdminService enterprise) : Controlle
     [HttpPost("companies/{companyId:guid}/users/{userId:guid}/change-username")]
     public async Task<IActionResult> ChangeUsername(Guid companyId, Guid userId, ChangeUsernameRequest request)
     {
-        try
-        {
-            var username = await enterprise.ChangeUsernameAsync(companyId, userId, request.NewPhone);
-            return Ok(new { username });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var username = await enterprise.ChangeUsernameAsync(companyId, userId, request.NewPhone);
+        return Ok(new { username });
     }
 
     public record RenewLicenseRequest(int Months);
@@ -84,14 +63,7 @@ public class EnterpriseController(EnterpriseAdminService enterprise) : Controlle
     [HttpPost("companies/{companyId:guid}/renew-license")]
     public async Task<IActionResult> RenewLicense(Guid companyId, RenewLicenseRequest request)
     {
-        try
-        {
-            var expiresOn = await enterprise.RenewLicenseAsync(companyId, request.Months);
-            return Ok(new { licenseExpiresOn = expiresOn });
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        var expiresOn = await enterprise.RenewLicenseAsync(companyId, request.Months);
+        return Ok(new { licenseExpiresOn = expiresOn });
     }
 }

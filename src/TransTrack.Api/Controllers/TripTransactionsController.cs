@@ -14,15 +14,8 @@ public class TripTransactionsController(TripTransactionService transactions, ICu
     [HttpPost("trips/{tripId:guid}/transactions")]
     public async Task<IActionResult> Add(Guid tripId, TripTransaction transaction)
     {
-        try
-        {
-            await transactions.AddAsync(tripId, transaction, currentUser.UserId);
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await transactions.AddAsync(tripId, transaction, currentUser.UserId);
+        return Ok();
     }
 
     /// <summary>Every pending transaction across every trip — the
@@ -38,15 +31,8 @@ public class TripTransactionsController(TripTransactionService transactions, ICu
     public async Task<IActionResult> Approve(Guid transactionId, ApprovalRequest request)
     {
         if (currentUser.UserId is not { } userId) return Forbid();
-        try
-        {
-            await transactions.ApproveAsync(transactionId, userId, request.Remarks);
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await transactions.ApproveAsync(transactionId, userId, request.Remarks);
+        return Ok();
     }
 
     [HttpPost("approvals/{transactionId:guid}/reject")]
@@ -54,15 +40,8 @@ public class TripTransactionsController(TripTransactionService transactions, ICu
     public async Task<IActionResult> Reject(Guid transactionId, ApprovalRequest request)
     {
         if (currentUser.UserId is not { } userId) return Forbid();
-        try
-        {
-            await transactions.RejectAsync(transactionId, userId, request.Remarks);
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await transactions.RejectAsync(transactionId, userId, request.Remarks);
+        return Ok();
     }
 
     /// <summary>Removing an amount received. Owner-only, deliberately: an

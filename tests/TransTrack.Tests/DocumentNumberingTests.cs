@@ -83,7 +83,7 @@ public class DocumentNumberingTests
 
         var ids = await Task.WhenAll(bookings);
 
-        var trips = await world.Trips.GetTripsAsync();
+        var trips = (await world.Trips.GetTripListAsync()).Items;
         var numbers = trips.Where(t => ids.Contains(t.Id)).Select(t => t.TripNo).ToList();
 
         Assert.Equal(simultaneous, numbers.Count);

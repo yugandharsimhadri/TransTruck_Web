@@ -50,19 +50,34 @@ public class RegistrationService(IDbContextFactory<AppDbContext> factory)
 
         await using var db = await factory.CreateDbContextAsync();
 
-        // Two separate checks so the message actually tells them what to do.
-        // The pair (company name + phone) is the rule as specified; the
-        // phone-already-used case is called out on its own because the login
-        // *is* the phone number, so a second company on the same number
-        // could not be signed into unambiguously.
+        // One message for both collisions, deliberately not two. This used
+        // to say "This company is already registered" for a name+phone match
+        // and "That phone number is already registered" for a phone-only
+        // match — which let an anonymous caller learn, one guess at a time,
+        // exactly which phone numbers already have an account, by reading
+        // which of the two messages came back. A single message can't be
+        // told apart that way.
+        //
+        // This doesn't fully close the door — a caller can still tell
+        // "registration failed" from "registration succeeded", and that
+        // binary alone is a weaker version of the same signal. Closing that
+        // completely means never letting registration fail visibly at all
+        // (e.g. always report success and only reveal a collision by SMS or
+        // email), which is a real redesign, not a wording fix. Not doing that
+        // here: this is a B2B tool for transport companies, not a service
+        // where "is this phone number a customer" is sensitive on its own,
+        // and the rate limit on this endpoint (see Program.cs) already makes
+        // bulk enumeration slow and expensive rather than free.
         var normalizedName = companyName.ToLower();
-        if (await db.Companies.IgnoreQueryFilters()
-                .AnyAsync(c => c.CompanyName.ToLower() == normalizedName && c.OwnerPhone == username && !c.IsDeleted))
-            throw new InvalidOperationException("This company is already registered. Sign in instead.");
+        var nameAndPhoneTaken = await db.Companies.IgnoreQueryFilters()
+            .AnyAsync(c => c.CompanyName.ToLower() == normalizedName && c.OwnerPhone == username && !c.IsDeleted);
+        var phoneTaken = !nameAndPhoneTaken
+            && await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username && !u.IsDeleted);
 
-        if (await db.Users.IgnoreQueryFilters().AnyAsync(u => u.Username == username && !u.IsDeleted))
+        if (nameAndPhoneTaken || phoneTaken)
             throw new InvalidOperationException(
-                "That phone number is already registered. Sign in with it, or register with a different number.");
+                "Couldn't register with those details. If you already have an account, sign in instead — " +
+                "otherwise try a different company name or phone number.");
 
         var startsOn = DateTime.UtcNow;
         var company = new Company

@@ -17,15 +17,8 @@ public class MaintenanceController(MaintenanceService maintenance) : ControllerB
     [HttpPost]
     public async Task<IActionResult> Save(VehicleMaintenance record)
     {
-        try
-        {
-            await maintenance.SaveAsync(record);
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await maintenance.SaveAsync(record);
+        return Ok();
     }
 
     [HttpDelete("{id:guid}")]

@@ -21,15 +21,8 @@ public class DriverLedgerController(DriverLedgerService ledger) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Save(DriverLedgerEntry entry)
     {
-        try
-        {
-            await ledger.SaveAsync(entry);
-            return Ok();
-        }
-        catch (InvalidOperationException ex)
-        {
-            return BadRequest(new { message = ex.Message });
-        }
+        await ledger.SaveAsync(entry);
+        return Ok();
     }
 
     [HttpDelete("{id:guid}")]
