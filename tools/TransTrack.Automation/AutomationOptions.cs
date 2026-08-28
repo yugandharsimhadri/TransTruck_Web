@@ -79,6 +79,18 @@ public sealed record AutomationOptions
     /// </summary>
     public string MobileDevice { get; init; } = "iPhone 15 Pro";
 
+    /// <summary>
+    /// The desktop page size, and — in a headed run — the screen the recording fills. 1920x1080 so
+    /// footage lands 1:1 on the usual video canvas with nothing to scale or letterbox.
+    ///
+    /// Configurable because it has to match the machine actually doing the recording: a headed
+    /// desktop run goes full screen, and a viewport larger than the display would be clipped rather
+    /// than scaled. Set TRANSTRUCK_UAT_DESKTOP_SIZE=1366x768 on a laptop.
+    /// </summary>
+    public int DesktopWidth { get; init; } = 1920;
+
+    public int DesktopHeight { get; init; } = 1080;
+
     /// <summary>Per-action delay Playwright applies, in milliseconds. Raised in the video modes so the cursor is followable.</summary>
     public int SlowMoMs => RunMode switch
     {
@@ -116,7 +128,10 @@ public sealed record AutomationOptions
     public static AutomationOptions FromEnvironment(
         RunMode defaultRunMode = RunMode.Test,
         Viewport defaultViewport = Viewport.Desktop)
-        => new()
+    {
+        var (desktopWidth, desktopHeight) = ParseSize(Env("TRANSTRUCK_UAT_DESKTOP_SIZE"), 1920, 1080);
+
+        return new AutomationOptions
         {
             BaseUrl = Env("TRANSTRUCK_UAT_BASE_URL") ?? "http://localhost:5310",
             ApiBaseUrl = Env("TRANSTRUCK_UAT_API_BASE_URL") ?? "http://localhost:5311",
@@ -125,7 +140,34 @@ public sealed record AutomationOptions
             WebProjectPath = Env("TRANSTRUCK_UAT_WEB_PATH") ?? RepoPaths.WebProject,
             ManageServers = !string.Equals(Env("TRANSTRUCK_UAT_MANAGE_SERVERS"), "false", StringComparison.OrdinalIgnoreCase),
             MobileDevice = Env("TRANSTRUCK_UAT_MOBILE_DEVICE") ?? "iPhone 15 Pro",
+            DesktopWidth = desktopWidth,
+            DesktopHeight = desktopHeight,
         };
+    }
+
+    /// <summary>
+    /// Parses WIDTHxHEIGHT. Rejected rather than quietly defaulted: this value decides the shape of
+    /// every recorded frame, so someone who typed "1920X1080 " or "1920*1080" needs to be told, not
+    /// handed 1920x1080 footage they will discover is wrong after the edit.
+    /// </summary>
+    private static (int Width, int Height) ParseSize(string? value, int defaultWidth, int defaultHeight)
+    {
+        if (value is null)
+            return (defaultWidth, defaultHeight);
+
+        var parts = value.Split('x', 'X');
+        if (parts.Length == 2
+            && int.TryParse(parts[0].Trim(), out var width)
+            && int.TryParse(parts[1].Trim(), out var height)
+            && width > 0 && height > 0)
+        {
+            return (width, height);
+        }
+
+        throw new ArgumentException(
+            $"TRANSTRUCK_UAT_DESKTOP_SIZE is '{value}', which is not a size. " +
+            "Use WIDTHxHEIGHT, for example 1920x1080 or 1366x768.");
+    }
 
     private static string? Env(string name)
     {

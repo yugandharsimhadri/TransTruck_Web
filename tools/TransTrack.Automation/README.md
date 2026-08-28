@@ -61,6 +61,7 @@ Every one has a working default, so a bare `dotnet test` needs no configuration.
 | `TRANSTRUCK_UAT_WEB_PATH` | `web/transtrack-web` | absolute path, if repo discovery fails |
 | `TRANSTRUCK_UAT_MANAGE_SERVERS` | `true` | `false` to point at servers you started |
 | `TRANSTRUCK_UAT_MOBILE_DEVICE` | `iPhone 15 Pro` | any Playwright device descriptor |
+| `TRANSTRUCK_UAT_DESKTOP_SIZE` | `1920x1080` | desktop page size, `WIDTHxHEIGHT`; rejected if malformed |
 
 ## Ports: 5310 and 5311
 
@@ -80,16 +81,43 @@ UAT run.
 
 ## Capture dimensions
 
-Report these to the video pipeline; they are printed at the end of every DemoRunner run.
+Printed at the end of every DemoRunner run, and written into the manifest. These are measured from
+the browser, not assumed — set the OBS scene from them.
 
-| Viewport | Page (CSS px) | DPR | Captured pixels | OS window |
-|---|---|---|---|---|
-| Desktop | 1600 × 900 | 1× | 1600 × 900 | 1600 × 992 |
-| Mobile (iPhone 15 Pro) | 393 × 659 | 3× | **1179 × 1977** | 393 × 751 |
+| Viewport | Page (CSS px) | DPR | Captured pixels | OS window | Chrome in frame |
+|---|---|---|---|---|---|
+| Desktop, full screen | 1920 × 1080 | 1× | 1920 × 1080 | **1920 × 1080** | none |
+| Desktop, `=1600x900` | 1600 × 900 | 1× | 1600 × 900 | 1616 × 988 | tab strip + omnibox |
+| Mobile (iPhone 15 Pro) | 393 × 659 | 3× | **1179 × 1977** | **516 × 747** | 88px band at the top |
 
-The mobile window is sized to the phone plus browser chrome so the recording is phone-shaped rather
-than a narrow strip down a widescreen canvas, and so the bottom tab bar — the control the mobile
-videos most need to show — is inside the frame rather than under it.
+**Desktop fills the screen with no browser chrome.** A headed desktop run puts the window into the
+fullscreen state, which is what removes the tab strip, omnibox and title bar — they sit inside the
+client area, so no OBS capture mode can crop them away.
+
+This is done over CDP (`Browser.setWindowBounds`), *not* with `--start-fullscreen`. Measured on this
+machine, `--start-fullscreen` and `--kiosk` are both silently ignored once `ViewportSize` is set:
+Playwright sizes the OS window to fit the viewport it was given, in the `normal` window state, and
+overrides whatever the launch flags asked for — chrome stays exactly where it was. Applying the
+bounds after the window exists is what makes it stick.
+
+Full screen only happens when the requested size **equals** the display. Ask for something smaller
+and the window stays windowed with chrome, because a 1600×900 page inside a 1920×1080 fullscreen
+window is a small picture on a black sheet — worse to record than an ordinary window. The run says
+so when it happens. Ask for something **larger** than the display and the run fails: the page would
+be clipped, not scaled, and a recording that silently loses its right and bottom edges looks fine
+until someone watches it.
+
+**Mobile keeps its browser chrome — this is a deliberate fallback.** The chromeless route does not
+work under Playwright and was not left half-done. Measured: `--app=<url>` has no effect, because
+Playwright creates its own page rather than using the one `--app` opened; `--kiosk` likewise. Going
+fullscreen is worse still — a 393px viewport in a 1920×1080 fullscreen window paints the phone into
+the corner of a blank sheet (421px of dead space). So the phone-shaped window keeps its 88px toolbar
+and the recording crops it, which is a known, stable crop rather than a flaky launch path.
+
+Two things about the mobile window worth knowing before building the scene: **Chromium will not make
+a window narrower than ~516px**, so the OS window is 516 × 747 even though the page is 393 wide —
+the extra 123px is dead space to the right of the page. And the 88px band is at the top. The page
+therefore occupies the bottom-left 393 × 659 of the window.
 
 ## Why the real API, not a mock
 
@@ -126,6 +154,12 @@ on `context.IsMobile` and says why. The real differences today:
 
 Two things that look like they should branch and deliberately do not: the trips list is the same
 stack of cards in both, and the status filter is the same listbox.
+
+**`ViewportSize` stays explicitly set, in both viewports.** Letting the page size itself off the
+window (`NoViewport`) is the obvious-looking simplification, and it would quietly undo the property
+this whole layer rests on: a headless UAT run and a headed recording must lay out identically, or a
+scenario starts passing or failing according to the monitor it ran on. The window is made to match
+the viewport — never the other way round. That is what makes the fullscreen change safe.
 
 **`ExpectVisibleAsync` and the `Visible()` helper matter more than they look.** This app ships both
 layouts in the DOM and hides one with a breakpoint, so a plain `.First` keeps binding to the layout
