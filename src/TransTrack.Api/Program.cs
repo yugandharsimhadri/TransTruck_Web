@@ -159,11 +159,20 @@ builder.Services.AddRateLimiter(options =>
             cancellationToken);
     };
 
+    // Ten a minute is the production setting and stays the default, so nothing changes for a real
+    // deployment by leaving this unset. It is configurable because the UAT suite signs in for every
+    // scenario it runs — around thirty times in under two minutes, all from 127.0.0.1, which is one
+    // partition — and would otherwise spend most of a run being told to wait. The suite raises this
+    // explicitly in TransTrack.Automation's ApiServer, the same way it overrides the CORS origin and
+    // the signing key: opted out where it is visible, rather than the product quietly relaxing its
+    // own defence whenever it thinks it is not in production.
+    var authPermitsPerMinute = builder.Configuration.GetValue("RateLimit:AuthPermitsPerMinute", 10);
+
     options.AddPolicy("auth", httpContext => RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions
         {
-            PermitLimit = 10,
+            PermitLimit = authPermitsPerMinute,
             Window = TimeSpan.FromMinutes(1),
             QueueLimit = 0
         }));

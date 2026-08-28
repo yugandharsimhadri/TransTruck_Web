@@ -81,6 +81,14 @@ public sealed class ApiServer : IAsyncDisposable
             // The Development default only allows localhost:3000, and the dev server this automation
             // starts is on 5310. Indexed binding is how ASP.NET overlays a config array element.
             ["Cors__AllowedOrigins__0"] = options.BaseUrl.TrimEnd('/'),
+
+            // Sign-in is rate limited to ten a minute per IP, which is right for a real deployment
+            // and wrong for a suite that signs in once per scenario: a full run makes about thirty
+            // attempts in under two minutes, every one of them from 127.0.0.1, so the eleventh
+            // onwards would be refused and the run would fail as "the password did not work".
+            // Raised here rather than switched off in the product, so the limiter itself is still
+            // exercised — just with a ceiling no honest test run reaches.
+            ["RateLimit__AuthPermitsPerMinute"] = "10000",
         };
 
         log?.Invoke($"Starting TransTrack.Api on {baseUrl} against a throwaway database in {dataDirectory}");

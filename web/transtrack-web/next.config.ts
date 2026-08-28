@@ -25,6 +25,32 @@ const scriptSrc = process.env.NODE_ENV === "production"
   ? "script-src 'self' 'unsafe-inline'"
   : "script-src 'self' 'unsafe-inline' 'unsafe-eval'";
 
+// connect-src has to name the API's origin, because it is on a different host
+// from the pages. Taking that name from NEXT_PUBLIC_API_URL — the same setting
+// the client actually calls (src/lib/api.ts) — rather than from a fixed list is
+// what keeps the two from drifting apart: a build pointed at a staging API, or
+// at the UAT harness on :5311, is otherwise blocked by its own CSP with nothing
+// in the UI to say why. It surfaces as "Something went wrong", because a CSP
+// refusal looks to fetch() exactly like a network failure.
+//
+// The two defaults stay listed so an unconfigured build still works: production
+// deploys against loapi, and a plain `next dev` falls back to :5034, which is
+// the same fallback api.ts uses.
+const apiOrigins = (() => {
+  const origins = new Set(["https://loapi.lorryowner.com", "http://localhost:5034"]);
+
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (configured) {
+    try {
+      origins.add(new URL(configured).origin);
+    } catch {
+      // A malformed URL is the client's problem to report, not the CSP's to crash on.
+    }
+  }
+
+  return [...origins].join(" ");
+})();
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   // DENY rather than SAMEORIGIN: this app is never meant to be framed,
@@ -48,7 +74,7 @@ const securityHeaders = [
       // The API lives on a different host (loapi.lorryowner.com in
       // production) — fetch/XHR to it is a connect-src concern, not
       // script-src, and cookies already scope what it's trusted with.
-      "connect-src 'self' https://loapi.lorryowner.com http://localhost:5034",
+      `connect-src 'self' ${apiOrigins}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
