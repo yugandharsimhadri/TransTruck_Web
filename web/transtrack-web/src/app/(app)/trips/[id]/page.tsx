@@ -419,6 +419,10 @@ export default function TripDetailPage() {
             <CardContent className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
               <Summary label="Total expenses" value={formatCurrency(trip.totalExpenses)} />
               <Summary label="Approved received" value={formatCurrency(trip.totalApprovedReceived)} />
+              {/* The split of the figure just above — always sums back to it
+                  exactly, since every approved amount is one or the other. */}
+              <Summary label="Advance received" value={formatCurrency(trip.totalAdvanceReceived)} />
+              <Summary label="Payment received" value={formatCurrency(trip.totalPaymentReceived)} />
               <Summary label="Balance receivable" value={formatCurrency(trip.balanceReceivable)} />
               <Summary label="Net after expenses" value={formatCurrency(trip.netAfterExpenses)} />
             </CardContent>
@@ -766,7 +770,12 @@ function AmountRow({ tripId, transaction, isOwner }: {
     <div className="rounded-lg border p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="font-medium">{formatCurrency(transaction.amount)} · {transaction.paymentMode}</p>
+          <p className="font-medium">
+            {formatCurrency(transaction.amount)} · {transaction.paymentMode} ·{" "}
+            <span className={transaction.receiptType === "Advance" ? "text-warning" : undefined}>
+              {transaction.receiptType}
+            </span>
+          </p>
           <p className="text-xs text-muted-foreground">{formatDate(transaction.date)}</p>
         </div>
         <div className="flex items-center gap-1">

@@ -153,6 +153,8 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.TripId).OnDelete(DeleteBehavior.Cascade);
             e.Ignore(x => x.TotalExpenses);
             e.Ignore(x => x.TotalApprovedReceived);
+            e.Ignore(x => x.TotalAdvanceReceived);
+            e.Ignore(x => x.TotalPaymentReceived);
             e.Ignore(x => x.BalanceReceivable);
             e.Ignore(x => x.NetAfterExpenses);
             e.Ignore(x => x.IsOwnAccounting);

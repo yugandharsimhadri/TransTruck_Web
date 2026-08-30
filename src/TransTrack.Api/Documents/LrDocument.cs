@@ -74,8 +74,20 @@ public static class LrDocument
                 table.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2); });
                 table.Cell().Text("Freight").FontSize(9);
                 table.Cell().AlignRight().Text($"{trip.Amount:N2}").FontSize(9);
+                // Genuinely the advance now, not "everything received so
+                // far" — before ReceiptType existed this line printed
+                // TotalApprovedReceived, which happened to read correctly
+                // only because nothing but an advance could exist this early
+                // in a trip's life. Balance to pay stays BalanceReceivable
+                // (Amount minus every approved receipt, advance or payment):
+                // that is what the party genuinely still owes, so it does not
+                // narrow to "minus advance only" just because the line above
+                // it did. The one case where the two rows stop visually
+                // summing to Freight is an LR reprinted after a Payment-type
+                // entry also exists on the same trip — rare, since a payment
+                // is normally recorded near trip close, well after the LR.
                 table.Cell().Text("Advance received").FontSize(9);
-                table.Cell().AlignRight().Text($"{trip.TotalApprovedReceived:N2}").FontSize(9);
+                table.Cell().AlignRight().Text($"{trip.TotalAdvanceReceived:N2}").FontSize(9);
                 table.Cell().PaddingTop(2).Text("Balance to pay").FontSize(9).Bold();
                 table.Cell().PaddingTop(2).AlignRight().Text($"{trip.BalanceReceivable:N2}").FontSize(9).Bold();
             });

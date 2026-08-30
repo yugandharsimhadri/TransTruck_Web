@@ -26,7 +26,8 @@ public record ComplianceAlert(string VehicleRegNo, string DocumentName, DateTime
 /// whole cash flow (both directions) can be filtered and reviewed together.
 /// <see cref="CountsInCompanyAccounts"/> is false for an other-owner
 /// vehicle's expense/income rows — shown when asked for, but never summed
-/// into the company's own totals.</summary>
+/// into the company's own totals. <see cref="ReceiptType"/> is null for an
+/// Expense row — the Advance/Payment split only applies to money coming in.</summary>
 public record LedgerRow(
     DateTime Date,
     string TripNo,
@@ -35,7 +36,8 @@ public record LedgerRow(
     string Kind,
     string Detail,
     decimal Amount,
-    bool CountsInCompanyAccounts);
+    bool CountsInCompanyAccounts,
+    ReceiptType? ReceiptType = null);
 
 /// <summary>One line of the party-wise report — the freight billed to a party
 /// for a single trip, in the shape the customer's existing paper report uses:

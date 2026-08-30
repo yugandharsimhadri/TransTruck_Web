@@ -121,6 +121,19 @@ public enum PaymentMode
     Cheque = 4
 }
 
+/// <summary>What an amount received against a trip actually is — money paid
+/// up front against the freight, or a payment toward the settlement. Every
+/// TripTransaction is exactly one of these; the two together, summed, are
+/// the whole of what a trip has received (Trip.TotalApprovedReceived).
+/// Deliberately not the same concept as DriverLedgerEntryType.AdvanceGiven,
+/// which is a driver's wage advance — this is the party's money, not the
+/// driver's.</summary>
+public enum ReceiptType
+{
+    Advance = 1,
+    Payment = 2
+}
+
 public enum DriverLedgerEntryType
 {
     SalaryPaid = 1,

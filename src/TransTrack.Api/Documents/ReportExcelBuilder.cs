@@ -13,7 +13,12 @@ public static class ReportExcelBuilder
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Trips");
 
-        string[] headers = ["Trip No", "Date", "Vehicle", "Driver", "Party", "From", "To", "Weight", "Rate", "Amount", "Expenses", "Balance", "LR No", "Bill No"];
+        // Received/Advance/Payment sit next to Amount deliberately — all four
+        // money-received columns together, before Expenses and Balance.
+        string[] headers = [
+            "Trip No", "Date", "Vehicle", "Driver", "Party", "From", "To", "Weight", "Rate",
+            "Amount", "Received", "Advance", "Payment", "Expenses", "Balance", "LR No", "Bill No"
+        ];
         for (var i = 0; i < headers.Length; i++) sheet.Cell(1, i + 1).Value = headers[i];
         sheet.Row(1).Style.Font.Bold = true;
 
@@ -30,12 +35,27 @@ public static class ReportExcelBuilder
             sheet.Cell(row, 8).Value = t.Weight;
             sheet.Cell(row, 9).Value = t.Rate;
             sheet.Cell(row, 10).Value = t.Amount;
-            sheet.Cell(row, 11).Value = t.TotalExpenses;
-            sheet.Cell(row, 12).Value = t.BalanceReceivable;
-            sheet.Cell(row, 13).Value = t.LrNo;
-            sheet.Cell(row, 14).Value = t.BillNo;
+            sheet.Cell(row, 11).Value = t.TotalApprovedReceived;
+            sheet.Cell(row, 12).Value = t.TotalAdvanceReceived;
+            sheet.Cell(row, 13).Value = t.TotalPaymentReceived;
+            sheet.Cell(row, 14).Value = t.TotalExpenses;
+            sheet.Cell(row, 15).Value = t.BalanceReceivable;
+            sheet.Cell(row, 16).Value = t.LrNo;
+            sheet.Cell(row, 17).Value = t.BillNo;
             row++;
         }
+
+        // A bold totals row — this report had none before, unlike Ledger and
+        // Party-wise, which already end with one.
+        row++;
+        sheet.Cell(row, 1).Value = "Total";
+        sheet.Cell(row, 10).Value = trips.Sum(t => t.Amount);
+        sheet.Cell(row, 11).Value = trips.Sum(t => t.TotalApprovedReceived);
+        sheet.Cell(row, 12).Value = trips.Sum(t => t.TotalAdvanceReceived);
+        sheet.Cell(row, 13).Value = trips.Sum(t => t.TotalPaymentReceived);
+        sheet.Cell(row, 14).Value = trips.Sum(t => t.TotalExpenses);
+        sheet.Cell(row, 15).Value = trips.Sum(t => t.BalanceReceivable);
+        sheet.Row(row).Style.Font.Bold = true;
 
         sheet.Columns().AdjustToContents();
         return ToBytes(workbook);
@@ -91,6 +111,28 @@ public static class ReportExcelBuilder
             sheet.Cell(row, 8).Value = r.CountsInCompanyAccounts ? "Yes" : "No — other owner";
             row++;
         }
+
+        // Same figures the PDF export's footer carries, so the two exports
+        // never disagree with each other.
+        var income = rows.Where(r => r.CountsInCompanyAccounts && r.Kind == "Income").Sum(r => r.Amount);
+        var expense = rows.Where(r => r.CountsInCompanyAccounts && r.Kind == "Expense").Sum(r => r.Amount);
+        var advance = rows.Where(r => r.CountsInCompanyAccounts && r.ReceiptType == ReceiptType.Advance).Sum(r => r.Amount);
+        var payment = rows.Where(r => r.CountsInCompanyAccounts && r.ReceiptType == ReceiptType.Payment).Sum(r => r.Amount);
+
+        row++; // blank separator row
+        void Summary(string label, decimal value, bool bold)
+        {
+            sheet.Cell(row, 1).Value = label;
+            sheet.Cell(row, 7).Value = value;
+            if (bold) { sheet.Row(row).Style.Font.Bold = true; }
+            row++;
+        }
+
+        Summary("Income (company accounts)", income, bold: true);
+        Summary("— of which Advance", advance, bold: false);
+        Summary("— of which Payment", payment, bold: false);
+        Summary("Expenses (company accounts)", expense, bold: true);
+        Summary("Net", income - expense, bold: true);
 
         sheet.Columns().AdjustToContents();
         return ToBytes(workbook);

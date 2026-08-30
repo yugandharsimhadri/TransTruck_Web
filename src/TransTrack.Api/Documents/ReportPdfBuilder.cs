@@ -50,12 +50,16 @@ public static class ReportPdfBuilder
                 {
                     c.RelativeColumn(1); c.RelativeColumn(1.2f); c.RelativeColumn(1.4f); c.RelativeColumn(1.4f);
                     c.RelativeColumn(1.8f); c.RelativeColumn(1.4f); c.RelativeColumn(1.4f);
-                    c.RelativeColumn(1.2f); c.RelativeColumn(1.2f); c.RelativeColumn(1.2f);
+                    c.RelativeColumn(1.2f); c.RelativeColumn(1.1f); c.RelativeColumn(1.1f);
+                    c.RelativeColumn(1.2f); c.RelativeColumn(1.2f);
                 });
 
                 table.Header(h =>
                 {
-                    foreach (var text in new[] { "Trip No", "Date", "Vehicle", "Driver", "Party", "From", "To", "Amount", "Expenses", "Balance" })
+                    // Advance/Payment between Amount and Expenses: Amount
+                    // minus the two of them minus Expenses is Balance, so the
+                    // row reads left-to-right as the trip's whole story.
+                    foreach (var text in new[] { "Trip No", "Date", "Vehicle", "Driver", "Party", "From", "To", "Amount", "Advance", "Payment", "Expenses", "Balance" })
                         h.Cell().BorderBottom(1).PaddingBottom(4).Text(text).SemiBold();
                 });
 
@@ -69,6 +73,8 @@ public static class ReportPdfBuilder
                     table.Cell().Text(t.FromCity.Name);
                     table.Cell().Text(t.ToCity.Name);
                     table.Cell().AlignRight().Text($"{t.Amount:N2}");
+                    table.Cell().AlignRight().Text($"{t.TotalAdvanceReceived:N2}");
+                    table.Cell().AlignRight().Text($"{t.TotalPaymentReceived:N2}");
                     table.Cell().AlignRight().Text($"{t.TotalExpenses:N2}");
                     table.Cell().AlignRight().Text($"{t.BalanceReceivable:N2}");
                 }
@@ -77,6 +83,8 @@ public static class ReportPdfBuilder
                 // trip contributes only its commission to this total.
                 table.Cell().ColumnSpan(7).BorderTop(1).PaddingTop(4).Text("Total (company revenue)").Bold();
                 table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{trips.Sum(t => t.CompanyRevenue):N2}").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{trips.Sum(t => t.TotalAdvanceReceived):N2}").Bold();
+                table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{trips.Sum(t => t.TotalPaymentReceived):N2}").Bold();
                 table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{trips.Sum(t => t.TotalExpenses):N2}").Bold();
                 table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{trips.Sum(t => t.BalanceReceivable):N2}").Bold();
             });
@@ -278,10 +286,20 @@ public static class ReportPdfBuilder
 
                 var income = rows.Where(r => r.CountsInCompanyAccounts && r.Kind == "Income").Sum(r => r.Amount);
                 var expense = rows.Where(r => r.CountsInCompanyAccounts && r.Kind == "Expense").Sum(r => r.Amount);
+                // The Advance/Payment split of Income — always sums back to
+                // it exactly, since every income row is one or the other.
+                var advance = rows.Where(r => r.CountsInCompanyAccounts && r.ReceiptType == ReceiptType.Advance).Sum(r => r.Amount);
+                var payment = rows.Where(r => r.CountsInCompanyAccounts && r.ReceiptType == ReceiptType.Payment).Sum(r => r.Amount);
 
                 table.Cell().ColumnSpan(6).BorderTop(1).PaddingTop(4).Text("Income (company accounts)").Bold();
                 table.Cell().BorderTop(1).PaddingTop(4).AlignRight().Text($"{income:N2}").Bold();
                 table.Cell().BorderTop(1);
+                table.Cell().ColumnSpan(6).PaddingTop(1).PaddingLeft(12).Text("— of which Advance").FontSize(8).FontColor(Colors.Grey.Darken1);
+                table.Cell().PaddingTop(1).AlignRight().Text($"{advance:N2}").FontSize(8).FontColor(Colors.Grey.Darken1);
+                table.Cell();
+                table.Cell().ColumnSpan(6).PaddingTop(1).PaddingLeft(12).Text("— of which Payment").FontSize(8).FontColor(Colors.Grey.Darken1);
+                table.Cell().PaddingTop(1).AlignRight().Text($"{payment:N2}").FontSize(8).FontColor(Colors.Grey.Darken1);
+                table.Cell();
                 table.Cell().ColumnSpan(6).PaddingTop(2).Text("Expenses (company accounts)").Bold();
                 table.Cell().PaddingTop(2).AlignRight().Text($"{expense:N2}").Bold();
                 table.Cell();

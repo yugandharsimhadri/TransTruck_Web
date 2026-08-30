@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError } from "@/lib/api";
-import type { PaymentMode } from "@/lib/types";
+import type { PaymentMode, ReceiptType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Banknote, Landmark, Smartphone, FileText } from "lucide-react";
 
@@ -23,6 +23,15 @@ const paymentModes: { value: PaymentMode; label: string; icon: typeof Banknote }
   { value: "Cheque", label: "Cheque", icon: FileText },
 ];
 
+// Payment first, not Advance: it's the more common entry (a settlement
+// against freight already delivered), and matches the field's own default
+// on the server — picking the same one here means someone who taps straight
+// through without looking at this row still gets the same answer either way.
+const receiptTypes: { value: ReceiptType; label: string; hint: string }[] = [
+  { value: "Payment", label: "Payment", hint: "Toward the settlement" },
+  { value: "Advance", label: "Advance", hint: "Up front, against freight" },
+];
+
 export default function AddAmountPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
@@ -31,6 +40,7 @@ export default function AddAmountPage() {
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [amount, setAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("Cash");
+  const [receiptType, setReceiptType] = useState<ReceiptType>("Payment");
   const [remarks, setRemarks] = useState("");
   const [error, setError] = useState("");
 
@@ -41,6 +51,7 @@ export default function AddAmountPage() {
         date,
         amount: Number(amount) || 0,
         paymentMode,
+        receiptType,
         remarks: remarks || null,
       }),
     onSuccess: () => {
@@ -94,6 +105,28 @@ export default function AddAmountPage() {
                 className="min-h-11 rounded-full border px-5 py-2.5 text-base font-medium transition hover:bg-accent desktop:min-h-0 desktop:px-3.5 desktop:py-1.5 desktop:text-sm"
               >
                 ₹{a.toLocaleString("en-IN")}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-base">Advance or payment?</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {receiptTypes.map((t) => (
+              <button
+                key={t.value}
+                type="button"
+                onClick={() => setReceiptType(t.value)}
+                className={cn(
+                  "rounded-2xl border-2 p-3 text-left transition",
+                  receiptType === t.value
+                    ? "border-primary bg-accent text-accent-foreground"
+                    : "border-border bg-card hover:bg-accent/50",
+                )}
+              >
+                <span className="block text-sm font-semibold">{t.label}</span>
+                <span className="block text-xs text-muted-foreground">{t.hint}</span>
               </button>
             ))}
           </div>

@@ -372,6 +372,17 @@ public class Trip : BaseEntity, ITenantEntity, IAuditable
     public decimal TotalApprovedReceived =>
         Transactions.Where(t => t.ApprovalStatus == ApprovalStatus.Approved).Sum(t => t.Amount);
 
+    /// <summary>The Advance/Payment split of TotalApprovedReceived — every
+    /// approved transaction is exactly one or the other, so these two always
+    /// sum back to it exactly.</summary>
+    public decimal TotalAdvanceReceived => Transactions
+        .Where(t => t.ApprovalStatus == ApprovalStatus.Approved && t.ReceiptType == ReceiptType.Advance)
+        .Sum(t => t.Amount);
+
+    public decimal TotalPaymentReceived => Transactions
+        .Where(t => t.ApprovalStatus == ApprovalStatus.Approved && t.ReceiptType == ReceiptType.Payment)
+        .Sum(t => t.Amount);
+
     /// <summary>What the party still owes against the billed freight amount.
     /// Only Approved transactions count — a Pending entry does not move
     /// this until the Owner approves it.</summary>
@@ -431,6 +442,13 @@ public class TripTransaction : BaseEntity, ITenantEntity, IAuditable
     public DateTime Date { get; set; } = DateTime.Today;
     public decimal Amount { get; set; }
     public PaymentMode PaymentMode { get; set; } = PaymentMode.Cash;
+
+    // Defaults to Payment, not Advance: every row recorded before this field
+    // existed backfilled to Payment (see the migration), and a new row left
+    // unset by an older client should land the same way rather than silently
+    // becoming an advance.
+    public ReceiptType ReceiptType { get; set; } = ReceiptType.Payment;
+
     public string? Remarks { get; set; }
 
     public Guid? EnteredByUserId { get; set; }

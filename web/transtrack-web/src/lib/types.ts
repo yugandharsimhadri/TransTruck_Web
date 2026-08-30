@@ -7,6 +7,9 @@ export type VehicleOwnership = "Own" | "Other";
 export type ApprovalStatus = "Pending" | "Approved" | "Rejected";
 export type TripStatus = "Open" | "Closed";
 export type PaymentMode = "Cash" | "Bank" | "Upi" | "Cheque";
+// Not the same "Advance" as DriverLedgerEntryType.AdvanceGiven below — that
+// one is a driver's wage advance; this is the party's money against freight.
+export type ReceiptType = "Advance" | "Payment";
 export type DriverLedgerEntryType = "SalaryPaid" | "AdvanceGiven" | "Deduction";
 
 export interface State {
@@ -132,6 +135,7 @@ export interface TripTransaction {
   date: string;
   amount: number;
   paymentMode: PaymentMode;
+  receiptType: ReceiptType;
   remarks?: string | null;
   enteredByUserId?: string | null;
   approvalStatus: ApprovalStatus;
@@ -176,6 +180,8 @@ export interface Trip {
   transactions: TripTransaction[];
   totalExpenses: number;
   totalApprovedReceived: number;
+  totalAdvanceReceived: number;
+  totalPaymentReceived: number;
   balanceReceivable: number;
   netAfterExpenses: number;
 }
@@ -391,6 +397,9 @@ export interface LedgerRow {
   detail: string;
   amount: number;
   countsInCompanyAccounts: boolean;
+  /** Null for an Expense row — the Advance/Payment split only applies to
+   *  money coming in. */
+  receiptType: ReceiptType | null;
 }
 
 export interface PartyTripRow {

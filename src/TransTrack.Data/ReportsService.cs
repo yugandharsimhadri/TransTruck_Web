@@ -154,8 +154,8 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
 
         rows.AddRange(income.Select(t => new LedgerRow(
             t.Date, t.Trip.TripNo, t.Trip.Vehicle.RegNo, t.Trip.Driver.Name,
-            "Income", $"{t.PaymentMode} — {t.ApprovalStatus}", t.Amount,
-            t.Trip.Vehicle.Ownership != VehicleOwnership.Other)));
+            "Income", $"{t.ReceiptType} · {t.PaymentMode} — {t.ApprovalStatus}", t.Amount,
+            t.Trip.Vehicle.Ownership != VehicleOwnership.Other, t.ReceiptType)));
 
         return rows.OrderByDescending(r => r.Date).ToList();
     }

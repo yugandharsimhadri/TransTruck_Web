@@ -191,7 +191,10 @@ public sealed class TestWorld : IAsyncDisposable
             Amount = amount
         });
 
-    public async Task<Guid> AddAmountAsync(Guid tripId, decimal amount)
+    // Defaults to Payment — same default the entity itself carries — so
+    // every existing call site that doesn't care about the distinction
+    // keeps behaving exactly as it did before ReceiptType existed.
+    public async Task<Guid> AddAmountAsync(Guid tripId, decimal amount, ReceiptType receiptType = ReceiptType.Payment)
     {
         var transaction = new TripTransaction
         {
@@ -199,7 +202,8 @@ public sealed class TestWorld : IAsyncDisposable
             CompanyId = CompanyId,
             Date = DateTime.Today,
             Amount = amount,
-            PaymentMode = PaymentMode.Cash
+            PaymentMode = PaymentMode.Cash,
+            ReceiptType = receiptType
         };
         await Transactions.AddAsync(tripId, transaction, UserId);
         return transaction.Id;

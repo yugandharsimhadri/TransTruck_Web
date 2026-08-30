@@ -249,12 +249,20 @@ function TripsReport({ qs }: { qs: string }) {
 
   const revenueTotal = query.data?.reduce((s, t) => s + t.totalApprovedReceived, 0) ?? 0;
   const balanceTotal = query.data?.reduce((s, t) => s + t.balanceReceivable, 0) ?? 0;
+  // The split of Received just above — always sums back to it exactly,
+  // since every approved amount on a trip is one or the other.
+  const advanceTotal = query.data?.reduce((s, t) => s + t.totalAdvanceReceived, 0) ?? 0;
+  const paymentTotal = query.data?.reduce((s, t) => s + t.totalPaymentReceived, 0) ?? 0;
 
   return (
     <div className="space-y-3 pt-4">
       <div className="grid grid-cols-2 gap-3">
         <Totals label="Received" value={formatCurrency(revenueTotal)} />
         <Totals label="Balance outstanding" value={formatCurrency(balanceTotal)} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Totals label="— of which Advance" value={formatCurrency(advanceTotal)} muted />
+        <Totals label="— of which Payment" value={formatCurrency(paymentTotal)} muted />
       </div>
       <ExportButtons type="trips" qs={qs} />
       <div className="space-y-2">
@@ -264,6 +272,11 @@ function TripsReport({ qs }: { qs: string }) {
               <p className="font-medium">{t.tripNo} · {t.vehicle?.regNo} · {formatDate(t.date)}</p>
               <p className="text-muted-foreground">{t.fromCity?.name} → {t.toCity?.name} · {t.party?.name}</p>
               <p className="mt-1">{formatCurrency(t.amount)} · Balance {formatCurrency(t.balanceReceivable)} · {t.status}</p>
+              {(t.totalAdvanceReceived > 0 || t.totalPaymentReceived > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  Advance {formatCurrency(t.totalAdvanceReceived)} · Payment {formatCurrency(t.totalPaymentReceived)}
+                </p>
+              )}
             </CardContent>
           </Card>
         ))}
@@ -312,6 +325,12 @@ function LedgerReport({ qs }: { qs: string }) {
     .reduce((s, r) => s + r.amount, 0) ?? 0;
   const expense = query.data?.filter((r) => r.countsInCompanyAccounts && r.kind === "Expense")
     .reduce((s, r) => s + r.amount, 0) ?? 0;
+  // The split of Income just above — always sums back to it exactly, since
+  // every income row is one or the other.
+  const advance = query.data?.filter((r) => r.countsInCompanyAccounts && r.receiptType === "Advance")
+    .reduce((s, r) => s + r.amount, 0) ?? 0;
+  const payment = query.data?.filter((r) => r.countsInCompanyAccounts && r.receiptType === "Payment")
+    .reduce((s, r) => s + r.amount, 0) ?? 0;
 
   return (
     <div className="space-y-3 pt-4">
@@ -319,6 +338,10 @@ function LedgerReport({ qs }: { qs: string }) {
         <Totals label="Income" value={formatCurrency(income)} />
         <Totals label="Expense" value={formatCurrency(expense)} />
         <Totals label="Net" value={formatCurrency(income - expense)} />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <Totals label="— of which Advance" value={formatCurrency(advance)} muted />
+        <Totals label="— of which Payment" value={formatCurrency(payment)} muted />
       </div>
       <ExportButtons type="ledger" qs={qs} />
       <div className="space-y-2">
@@ -375,12 +398,12 @@ function ExportButtons({
   );
 }
 
-function Totals({ label, value }: { label: string; value: string }) {
+function Totals({ label, value, muted }: { label: string; value: string; muted?: boolean }) {
   return (
     <Card>
       <CardContent className="p-3">
         <p className="text-xs text-muted-foreground">{label}</p>
-        <p className="text-lg font-semibold">{value}</p>
+        <p className={muted ? "text-base font-medium text-muted-foreground" : "text-lg font-semibold"}>{value}</p>
       </CardContent>
     </Card>
   );
