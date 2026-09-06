@@ -102,6 +102,16 @@ var failed = results.Count - passed;
 Console.WriteLine();
 Console.WriteLine($"Done in {stopwatch.Elapsed.TotalSeconds:0.0}s — {passed} succeeded, {failed} failed.");
 Console.WriteLine($"Capture: {session.Capture}");
+
+// Said out loud rather than left in a README: a window capture of this run is not
+// the page unless it is cropped, and the numbers are measured from the window that
+// actually opened, so they stay right if Chromium's chrome changes height.
+if (session.Capture.NeedsCrop)
+{
+    Console.WriteLine(
+        $"         Window capture needs cropping — top {session.Capture.TopCrop}px, " +
+        $"right {session.Capture.RightCrop}px, leaving {session.Capture.PageWidth}x{session.Capture.PageHeight}.");
+}
 Console.WriteLine($"Manifest: {manifestPath}");
 
 foreach (var failure in results.Where(r => !r.Succeeded))
@@ -138,6 +148,9 @@ static void WriteManifest(
             deviceScaleFactor = capture.DeviceScaleFactor,
             windowWidth = capture.WindowWidth,
             windowHeight = capture.WindowHeight,
+            // What a window capture must lose to be just the page.
+            cropTop = capture.TopCrop,
+            cropRight = capture.RightCrop,
         },
         totalDurationSeconds = Math.Round(totalDuration.TotalSeconds, 1),
         segments = workflows.Select((workflow, i) => new

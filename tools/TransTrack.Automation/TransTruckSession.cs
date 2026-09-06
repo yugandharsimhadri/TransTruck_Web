@@ -201,9 +201,27 @@ public sealed class TransTruckSession : IAsyncDisposable
     /// which is the whole point: the page still lays out at exactly the size the headless UAT run
     /// used.
     ///
-    /// Mobile is deliberately left alone. A fullscreen window with a 393px viewport paints the phone
-    /// into the corner of a blank 1920x1080 sheet — measured: chrome "height" becomes 421px of dead
-    /// space. The phone-shaped window keeps its toolbar, and the recording crops it.
+    /// Mobile is left with an ordinary window, and — stated plainly, because an earlier version of
+    /// this comment claimed otherwise — that window is <b>not</b> phone-shaped. It comes back 516
+    /// wide against a 393px page, so a capture of it carries a 123px dead column beside the phone
+    /// and an 88px toolbar above it. Both have to be cropped; the run prints the exact numbers.
+    ///
+    /// That is not a missing flag, it is a floor. Measured by asking for widths from 300 to 600:
+    /// everything below 516 comes back 516, and 516 upward is honoured exactly. The floor applies to
+    /// a genuine Chromium app window too — launched directly with --app, outside Playwright, with
+    /// --window-size=393,659, the window is still 516 wide (its height obeys, which is how we know
+    /// --app does remove the toolbar). So no window Playwright can drive is 393 wide, and the dead
+    /// column cannot be removed at any price.
+    ///
+    /// Since a crop is unavoidable either way, the app-window route was rejected rather than half
+    /// done: attaching over CDP to a browser we launch ourselves would remove the 88px band but
+    /// keep the 123px column, and would cost the device descriptor — touch, user agent and scale
+    /// factor would have to be re-applied by hand, which is the coherence the mobile run depends on.
+    /// A stable window with documented crop values beats a bespoke launch path that still needs
+    /// cropping.
+    ///
+    /// Fullscreen is not the answer either: a 393px viewport in a 1920x1080 fullscreen window paints
+    /// the phone into the corner of a blank sheet — 421px of dead space, measured.
     /// </summary>
     private static async Task<CaptureSize> FrameTheWindowAsync(
         IBrowserContext context,
@@ -394,5 +412,20 @@ public readonly record struct CaptureSize(
     int WindowWidth,
     int WindowHeight)
 {
+    /// <summary>
+    /// Browser chrome above the page — the toolbar, when there is one. Derived rather than assumed,
+    /// so it stays right if a Chromium update changes the toolbar's height.
+    /// </summary>
+    public int TopCrop => Math.Max(0, WindowHeight - PageHeight);
+
+    /// <summary>
+    /// Dead space beside the page. Non-zero on mobile because Chromium will not make a window
+    /// narrower than 516px, whatever the emulated viewport is.
+    /// </summary>
+    public int RightCrop => Math.Max(0, WindowWidth - PageWidth);
+
+    /// <summary>True when a window capture contains anything other than the page.</summary>
+    public bool NeedsCrop => TopCrop > 0 || RightCrop > 0;
+
     public override string ToString() => $"{PageWidth}x{PageHeight} @ {DeviceScaleFactor}x (window {WindowWidth}x{WindowHeight})";
 }

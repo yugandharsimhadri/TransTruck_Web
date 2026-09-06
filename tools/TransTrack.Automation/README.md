@@ -88,7 +88,7 @@ the browser, not assumed — set the OBS scene from them.
 |---|---|---|---|---|---|
 | Desktop, full screen | 1920 × 1080 | 1× | 1920 × 1080 | **1920 × 1080** | none |
 | Desktop, `=1600x900` | 1600 × 900 | 1× | 1600 × 900 | 1616 × 988 | tab strip + omnibox |
-| Mobile (iPhone 15 Pro) | 393 × 659 | 3× | **1179 × 1977** | **516 × 747** | 88px band at the top |
+| Mobile (iPhone 15 Pro) | 393 × 659 | 3× | **1179 × 1977** | **516 × 747** | 88px top, 123px right |
 
 **Desktop fills the screen with no browser chrome.** A headed desktop run puts the window into the
 fullscreen state, which is what removes the tab strip, omnibox and title bar — they sit inside the
@@ -107,17 +107,32 @@ so when it happens. Ask for something **larger** than the display and the run fa
 be clipped, not scaled, and a recording that silently loses its right and bottom edges looks fine
 until someone watches it.
 
-**Mobile keeps its browser chrome — this is a deliberate fallback.** The chromeless route does not
-work under Playwright and was not left half-done. Measured: `--app=<url>` has no effect, because
-Playwright creates its own page rather than using the one `--app` opened; `--kiosk` likewise. Going
-fullscreen is worse still — a 393px viewport in a 1920×1080 fullscreen window paints the phone into
-the corner of a blank sheet (421px of dead space). So the phone-shaped window keeps its 88px toolbar
-and the recording crops it, which is a known, stable crop rather than a flaky launch path.
+**Mobile needs cropping, and cannot be made not to.** The window is 516 × 747 around a 393 × 659
+page: an 88px toolbar above it and a 123px dead column beside it. The run prints the exact crop, and
+the manifest carries it as `cropTop` / `cropRight`, both derived from the window that actually
+opened rather than hardcoded:
 
-Two things about the mobile window worth knowing before building the scene: **Chromium will not make
-a window narrower than ~516px**, so the OS window is 516 × 747 even though the page is 393 wide —
-the extra 123px is dead space to the right of the page. And the 88px band is at the top. The page
-therefore occupies the bottom-left 393 × 659 of the window.
+```
+Capture: 393x659 @ 3x (window 516x747)
+         Window capture needs cropping — top 88px, right 123px, leaving 393x659.
+```
+
+The width is a **hard floor in Chromium, not a missing flag**. Asking for widths from 300 to 600:
+everything below 516 comes back 516, and 516 upward is honoured exactly. It applies to a genuine app
+window too — Chromium launched directly with `--app` and `--window-size=393,659`, outside Playwright
+entirely, still opens 516 wide. Its *height* obeys, which is how we know `--app` does remove the
+toolbar; the width simply cannot go lower. **No window Playwright can drive is 393px wide**, so the
+dead column cannot be removed at any price.
+
+Because a crop is therefore unavoidable, the app-window route was rejected rather than half done.
+Attaching over CDP to a browser we launch ourselves would remove the 88px band and keep the 123px
+column — still a crop, bought with a bespoke launch path and with the device descriptor unpicked, so
+touch, user agent and scale factor would have to be re-applied by hand. That coherence is what makes
+the mobile run mean anything. A stable window with published crop values beats a fragile launch path
+that still needs cropping.
+
+Fullscreen is not the answer either: a 393px viewport in a 1920 × 1080 fullscreen window paints the
+phone into the corner of a blank sheet — 421px of dead space, measured.
 
 ## Why the real API, not a mock
 
