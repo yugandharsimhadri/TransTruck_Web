@@ -1,4 +1,5 @@
 import {
+  HandCoins,
   LayoutDashboard,
   Truck,
   Route,
@@ -51,6 +52,7 @@ export const moreNavItems: NavItem[] = [
   { href: "/driver-ledger", label: "Driver Ledger", icon: BookUser },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/party-bills", label: "Party Bills", icon: ReceiptText },
+  { href: "/settlements", label: "Bulk Settlement", icon: HandCoins },
   { href: "/vehicles", label: "Vehicles", icon: Truck },
   { href: "/masters", label: "Drivers & Parties", icon: Users },
   { href: "/activity", label: "Activity", icon: History, roles: ["Owner", "CoOwner"] },

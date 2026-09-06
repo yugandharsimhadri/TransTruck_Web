@@ -45,6 +45,7 @@ public class AppDbContext : DbContext
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<TripExpense> TripExpenses => Set<TripExpense>();
     public DbSet<TripTransaction> TripTransactions => Set<TripTransaction>();
+    public DbSet<Settlement> Settlements => Set<Settlement>();
     public DbSet<VehicleMaintenance> VehicleMaintenances => Set<VehicleMaintenance>();
     public DbSet<VehicleExpenseSchedule> VehicleExpenseSchedules => Set<VehicleExpenseSchedule>();
     public DbSet<VehicleExpense> VehicleExpenses => Set<VehicleExpense>();
@@ -180,6 +181,21 @@ public class AppDbContext : DbContext
             // Same reasoning as Trips above: the approvals screen filters by
             // status *within* a company, never across all of them.
             e.HasIndex(x => new { x.CompanyId, x.ApprovalStatus });
+
+            // Restrict, not Cascade: a settlement is the record of a decision,
+            // and deleting it must never silently take the money it recorded
+            // out of the trips' books.
+            e.HasOne(x => x.Settlement).WithMany(x => x.Transactions)
+                .HasForeignKey(x => x.SettlementId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<Settlement>(e =>
+        {
+            e.HasOne(x => x.Party).WithMany()
+                .HasForeignKey(x => x.PartyId).OnDelete(DeleteBehavior.Restrict);
+            e.HasIndex(x => new { x.CompanyId, x.ApprovalStatus });
+            e.Ignore(x => x.TotalAmount);
+            e.Ignore(x => x.TripCount);
         });
 
         b.Entity<VehicleMaintenance>(e =>

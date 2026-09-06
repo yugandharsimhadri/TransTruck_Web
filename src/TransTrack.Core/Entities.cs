@@ -529,6 +529,54 @@ public class TripTransaction : BaseEntity, ITenantEntity, IAuditable
     public Guid? ApprovedByUserId { get; set; }
     public DateTime? ApprovedOn { get; set; }
     public string? ApprovalRemarks { get; set; }
+
+    /// <summary>The bulk settlement that created this receipt, when it came
+    /// from one. Such receipts are never approved on their own — the whole
+    /// settlement is approved or rejected together, so the Approvals screen
+    /// hides them individually and shows the settlement instead.</summary>
+    public Guid? SettlementId { get; set; }
+    public Settlement? Settlement { get; set; }
+}
+
+/// <summary>
+/// One payment covering several trips at once.
+///
+/// A party that runs twenty loads in a month pays for them in one transfer,
+/// not twenty. Recording that as twenty separate receipts and twenty separate
+/// approvals is how a settled month takes an afternoon and still ends up with
+/// three trips left open because someone lost their place.
+///
+/// The money is still recorded per trip — each line is an ordinary
+/// <see cref="TripTransaction"/>, so balances, reports and the audit trail all
+/// work exactly as they always did. What is shared is the decision: one
+/// approval covers every line, and approving it closes every trip it paid for.
+/// </summary>
+public class Settlement : BaseEntity, ITenantEntity, IAuditable
+{
+    public Guid CompanyId { get; set; }
+
+    public Guid PartyId { get; set; }
+    public Party Party { get; set; } = null!;
+
+    public DateTime Date { get; set; } = DateTime.Today;
+    public PaymentMode PaymentMode { get; set; } = PaymentMode.Bank;
+    public string? Remarks { get; set; }
+
+    public Guid? EnteredByUserId { get; set; }
+
+    public ApprovalStatus ApprovalStatus { get; set; } = ApprovalStatus.Pending;
+    public Guid? ApprovedByUserId { get; set; }
+    public DateTime? ApprovedOn { get; set; }
+    public string? ApprovalRemarks { get; set; }
+
+    public List<TripTransaction> Transactions { get; set; } = [];
+
+    /// <summary>What the party paid — the sum of the lines, never stored
+    /// separately. A stored total is a second source of truth that goes stale
+    /// the first time a line is removed.</summary>
+    public decimal TotalAmount => Transactions.Where(t => !t.IsDeleted).Sum(t => t.Amount);
+
+    public int TripCount => Transactions.Count(t => !t.IsDeleted);
 }
 
 public class VehicleMaintenance : BaseEntity, ITenantEntity, IAuditable

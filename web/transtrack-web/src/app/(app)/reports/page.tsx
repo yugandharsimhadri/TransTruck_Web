@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { Input } from "@/components/ui/input";
 import { api, ApiError } from "@/lib/api";
 import { shareFile } from "@/lib/share";
@@ -96,113 +97,114 @@ export default function ReportsPage() {
   const savingsQs = savingsParams.toString();
 
   return (
-    <PageContainer className="space-y-4">
-      <h1 className="text-xl font-semibold">Reports</h1>
+    <>
+      <PageHeader title="Reports" backTo="/dashboard" />
+      <PageContainer className="space-y-4">
+        <Card>
+          <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Vehicle</Label>
+              <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="All">
+                    {(v: string) => vehiclesQuery.data?.find((x) => x.id === v)?.regNo ?? "All"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {vehiclesQuery.data?.map((v) => <SelectItem key={v.id} value={v.id}>{v.regNo}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Driver</Label>
+              <Select value={driverId} onValueChange={(v) => setDriverId(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="All">
+                    {(v: string) => driversQuery.data?.find((x) => x.id === v)?.name ?? "All"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {driversQuery.data?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            {/* Reporting is almost always "one month" — picking a month sets
+                both ends at once rather than making someone work out that the
+                31st is the last day of this one. The date boxes stay for the
+                ranges a month can't express. */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Month</Label>
+              <select
+                aria-label="Month"
+                className="h-9 w-full rounded-lg border bg-card px-2 text-sm"
+                value={monthValue(from, to)}
+                onChange={(e) => {
+                  const [y, m] = e.target.value.split("-").map(Number);
+                  if (!y || !m) { setFrom(""); setTo(""); return; }
+                  setFrom(new Date(y, m - 1, 1).toLocaleDateString("en-CA"));
+                  // Day 0 of the next month is the last day of this one, which
+                  // avoids hard-coding month lengths or leap years.
+                  setTo(new Date(y, m, 0).toLocaleDateString("en-CA"));
+                }}
+              >
+                <option value="">All dates</option>
+                {lastMonths(12).map((m) => (
+                  <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">From</Label>
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">To</Label>
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Party (party report)</Label>
+              <Select value={partyId} onValueChange={(v) => setPartyId(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Choose">
+                    {(v: string) => partiesQuery.data?.find((x) => x.id === v)?.name ?? "Choose"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {partiesQuery.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="col-span-2 space-y-1.5 sm:col-span-3">
+              <Label className="text-xs">Ownership</Label>
+              <Select value={ownership} onValueChange={(v) => setOwnership((v as VehicleOwnership) ?? "")}>
+                <SelectTrigger className="w-full sm:w-56">
+                  <SelectValue placeholder="All vehicles">{(v: string) => (v ? v : "All vehicles")}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Own">Own fleet only</SelectItem>
+                  <SelectItem value="Other">Other-owner only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardContent className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Vehicle</Label>
-            <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All">
-                  {(v: string) => vehiclesQuery.data?.find((x) => x.id === v)?.regNo ?? "All"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {vehiclesQuery.data?.map((v) => <SelectItem key={v.id} value={v.id}>{v.regNo}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Driver</Label>
-            <Select value={driverId} onValueChange={(v) => setDriverId(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="All">
-                  {(v: string) => driversQuery.data?.find((x) => x.id === v)?.name ?? "All"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {driversQuery.data?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          {/* Reporting is almost always "one month" — picking a month sets
-              both ends at once rather than making someone work out that the
-              31st is the last day of this one. The date boxes stay for the
-              ranges a month can't express. */}
-          <div className="space-y-1.5">
-            <Label className="text-xs">Month</Label>
-            <select
-              aria-label="Month"
-              className="h-9 w-full rounded-lg border bg-card px-2 text-sm"
-              value={monthValue(from, to)}
-              onChange={(e) => {
-                const [y, m] = e.target.value.split("-").map(Number);
-                if (!y || !m) { setFrom(""); setTo(""); return; }
-                setFrom(new Date(y, m - 1, 1).toLocaleDateString("en-CA"));
-                // Day 0 of the next month is the last day of this one, which
-                // avoids hard-coding month lengths or leap years.
-                setTo(new Date(y, m, 0).toLocaleDateString("en-CA"));
-              }}
-            >
-              <option value="">All dates</option>
-              {lastMonths(12).map((m) => (
-                <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Party (party report)</Label>
-            <Select value={partyId} onValueChange={(v) => setPartyId(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Choose">
-                  {(v: string) => partiesQuery.data?.find((x) => x.id === v)?.name ?? "Choose"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {partiesQuery.data?.map((p) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="col-span-2 space-y-1.5 sm:col-span-3">
-            <Label className="text-xs">Ownership</Label>
-            <Select value={ownership} onValueChange={(v) => setOwnership((v as VehicleOwnership) ?? "")}>
-              <SelectTrigger className="w-full sm:w-56">
-                <SelectValue placeholder="All vehicles">{(v: string) => (v ? v : "All vehicles")}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Own">Own fleet only</SelectItem>
-                <SelectItem value="Other">Other-owner only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Tabs defaultValue="trips">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="trips">Trips</TabsTrigger>
-          <TabsTrigger value="party">Party-wise</TabsTrigger>
-          <TabsTrigger value="savings">Vehicle savings</TabsTrigger>
-          <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
-          <TabsTrigger value="ledger">Transactions</TabsTrigger>
-        </TabsList>
-        <TabsContent value="trips"><TripsReport qs={qs} /></TabsContent>
-        <TabsContent value="party"><PartyWiseReport qs={partyQs} hasParty={partyId !== ""} /></TabsContent>
-        <TabsContent value="savings"><VehicleSavingsReport qs={savingsQs} /></TabsContent>
-        <TabsContent value="maintenance"><MaintenanceReport qs={qs} /></TabsContent>
-        <TabsContent value="ledger"><LedgerReport qs={qs} /></TabsContent>
-      </Tabs>
-    </PageContainer>
+        <Tabs defaultValue="trips">
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="trips">Trips</TabsTrigger>
+            <TabsTrigger value="party">Party-wise</TabsTrigger>
+            <TabsTrigger value="savings">Vehicle savings</TabsTrigger>
+            <TabsTrigger value="maintenance">Maintenance</TabsTrigger>
+            <TabsTrigger value="ledger">Transactions</TabsTrigger>
+          </TabsList>
+          <TabsContent value="trips"><TripsReport qs={qs} /></TabsContent>
+          <TabsContent value="party"><PartyWiseReport qs={partyQs} hasParty={partyId !== ""} /></TabsContent>
+          <TabsContent value="savings"><VehicleSavingsReport qs={savingsQs} /></TabsContent>
+          <TabsContent value="maintenance"><MaintenanceReport qs={qs} /></TabsContent>
+          <TabsContent value="ledger"><LedgerReport qs={qs} /></TabsContent>
+        </Tabs>
+      </PageContainer>
+    </>
   );
 }
 

@@ -20,11 +20,12 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
+import { PageHeader } from "@/components/shell/page-header";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate, today } from "@/lib/format";
 import type { Trip, Vehicle, Driver, Party, City, State } from "@/lib/types";
 import Link from "next/link";
-import { ArrowLeft, Trash2, Lock, LockOpen, Share2, FileText, Receipt, Wallet, Plus, ChevronDown } from "lucide-react";
+import { Trash2, Lock, LockOpen, Share2, FileText, Receipt, Wallet, Plus, ChevronDown } from "lucide-react";
 import { shareFile, shareText } from "@/lib/share";
 import { iconForCategory } from "@/lib/expense-icons";
 import { TripAuditTrail } from "@/components/audit-trail";
@@ -199,14 +200,13 @@ export default function TripDetailPage() {
   });
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/trips")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <h1 className="flex-1 text-xl font-semibold">
-          {isNew ? "New trip" : trip ? `Trip ${trip.tripNo}` : "Loading…"}
-        </h1>
+    <>
+      <PageHeader
+        width="form"
+        title={isNew ? "New trip" : trip ? `Trip ${trip.tripNo}` : "Loading…"}
+        backTo="/trips"
+        actions={
+          <>
         {trip && <Badge variant={trip.status === "Open" ? "default" : "success"}>{trip.status}</Badge>}
         {trip && (
           <Button
@@ -232,8 +232,11 @@ export default function TripDetailPage() {
             <Share2 className="h-4 w-4" />
           </Button>
         )}
-      </div>
+          </>
+        }
+      />
 
+      <div className="mx-auto max-w-2xl space-y-6 p-4 sm:p-6">
       {/* A closed trip is settled: nothing can be added to it until someone
           deliberately reopens it. Saying so here — instead of leaving buttons
           that lead to a form which fails on submit — is the difference between
@@ -646,7 +649,8 @@ export default function TripDetailPage() {
           )}
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

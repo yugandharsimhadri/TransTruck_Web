@@ -14,6 +14,8 @@ public static class WorkflowCatalog
         new SignInWorkflow(),
         new DashboardWorkflow(),
         new VehiclesWorkflow(),
+        new WayOutWorkflow(),
+        new BulkSettlementWorkflow(),
         new MastersWorkflow(),
         new BrowseTripsWorkflow(),
         new TripDetailWorkflow(),

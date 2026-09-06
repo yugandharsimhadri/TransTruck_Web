@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api, ApiError } from "@/lib/api";
 import { shareFile } from "@/lib/share";
@@ -64,93 +65,101 @@ export default function PartyBillsPage() {
   };
 
   return (
-    <PageContainer className="space-y-4">
-      <h1 className="text-xl font-semibold">Party Bills</h1>
-
-      <Card>
-        <CardContent className="space-y-3 p-4">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Party</Label>
-            <SearchablePicker
-              label="Party"
-              value={partyId}
-              onSelect={setPartyId}
-              options={(partiesQuery.data ?? []).map((p) => ({
-                id: p.id,
-                label: p.name,
-                sublabel: p.isGstEnabled ? `GST ${p.gstPercentage}%` : (p.phone ?? undefined),
-              }))}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+    <>
+      <PageHeader title="Party Bills" backTo="/dashboard" />
+      <PageContainer className="space-y-4">
+        <Card>
+          <CardContent className="space-y-3 p-4">
             <div className="space-y-1.5">
-              <Label className="text-xs">From</Label>
-              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              <Label className="text-xs">Party</Label>
+              <SearchablePicker
+                label="Party"
+                value={partyId}
+                onSelect={setPartyId}
+                options={(partiesQuery.data ?? []).map((p) => ({
+                  id: p.id,
+                  label: p.name,
+                  sublabel: p.isGstEnabled ? `GST ${p.gstPercentage}%` : (p.phone ?? undefined),
+                }))}
+              />
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">To</Label>
-              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">From</Label>
+                <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">To</Label>
+                <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {!partyId && (
-        <p className="text-sm text-muted-foreground">Choose a party to see their bill for the period.</p>
-      )}
+        {!partyId && (
+          <p className="text-sm text-muted-foreground">Choose a party to see their bill for the period.</p>
+        )}
 
-      {report && (
-        <>
-          <div className="grid grid-cols-2 gap-3">
-            <Totals label="Trips" value={report.rows.length.toString()} />
-            <Totals label="Bill total" value={formatCurrency(report.grandTotal)} />
-          </div>
+        {report && (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <Totals label="Trips" value={report.rows.length.toString()} />
+              <Totals label="Bill total" value={formatCurrency(report.grandTotal)} />
+            </div>
 
-          {/* The same freight → extras → tax → total the printed bill shows,
-              so what is on screen reconciles with what gets sent. */}
-          <Card>
-            <CardContent className="space-y-1 p-3 text-sm">
-              <Line label="Freight" value={report.total} />
-              {report.totalWayment > 0 && <Line label="Wayment" value={report.totalWayment} />}
-              {report.totalLoading > 0 && <Line label="Loading" value={report.totalLoading} />}
-              {report.totalUnloading > 0 && <Line label="Unloading" value={report.totalUnloading} />}
-              {report.hasExtras && <Line label="Total before tax" value={report.totalBeforeTax} bold />}
-              {report.hasGst && <Line label="GST" value={report.totalGst} />}
-              <Line label="Grand total" value={report.grandTotal} bold />
-            </CardContent>
-          </Card>
+            {/* The same freight → extras → tax → total the printed bill shows,
+                so what is on screen reconciles with what gets sent. */}
+            <Card>
+              <CardContent className="space-y-1 p-3 text-sm">
+                <Line label="Freight" value={report.total} />
+                {report.hasWayment && <Line label="Wayment" value={report.totalWayment} />}
+                {report.hasLoading && <Line label="Loading" value={report.totalLoading} />}
+                {report.hasUnloading && <Line label="Unloading" value={report.totalUnloading} />}
+                <Line label="Total before tax" value={report.totalBeforeTax} bold={!report.hasGst} />
+                {/* Tax lands on the bill's total, not on each trip, so it sits
+                    here rather than in the rows above. */}
+                {report.hasGst && (
+                  <>
+                    <Line label={report.gstLabel} value={report.totalGst} />
+                    <Line label="Grand total" value={report.grandTotal} bold />
+                  </>
+                )}
+              </CardContent>
+            </Card>
 
-          <Button className="h-12 w-full" disabled={busy || report.rows.length === 0} onClick={download}>
-            <FileDown className="h-4 w-4" /> {busy ? "Preparing…" : "Bill — view / share"}
-          </Button>
+            <Button className="h-12 w-full" disabled={busy || report.rows.length === 0} onClick={download}>
+              <FileDown className="h-4 w-4" /> {busy ? "Preparing…" : "Bill — view / share"}
+            </Button>
 
-          <div className="space-y-2">
-            {report.rows.map((r) => (
-              <Card key={r.serialNo}>
-                <CardContent className="flex items-center justify-between gap-3 p-3 text-sm">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">
-                      {formatDate(r.date)} · {r.vehicleRegNo}
-                      {r.lrNo ? ` · LR ${r.lrNo}` : ""}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {r.fromCity} → {r.toCity}
-                      {r.totalExtras > 0 ? ` · extras ${formatCurrency(r.totalExtras)}` : ""}
-                      {r.gstAmount > 0 ? ` · GST ${formatCurrency(r.gstAmount)}` : ""}
-                    </p>
-                  </div>
-                  <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(r.grandTotal)}</p>
-                </CardContent>
-              </Card>
-            ))}
-            {report.rows.length === 0 && (
-              <p className="text-sm text-muted-foreground">No trips for this party in that period.</p>
-            )}
-          </div>
-        </>
-      )}
-    </PageContainer>
+            <div className="space-y-2">
+              {report.rows.map((r) => (
+                <Card key={r.serialNo}>
+                  <CardContent className="flex items-center justify-between gap-3 p-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium">
+                        {formatDate(r.date)} · {r.vehicleRegNo}
+                        {r.lrNo ? ` · LR ${r.lrNo}` : ""}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {r.fromCity} → {r.toCity}
+                        {r.waymentCharge > 0 ? ` · wayment ${formatCurrency(r.waymentCharge)}` : ""}
+                        {r.loadingCharge > 0 ? ` · loading ${formatCurrency(r.loadingCharge)}` : ""}
+                        {r.unloadingCharge > 0 ? ` · unloading ${formatCurrency(r.unloadingCharge)}` : ""}
+                      </p>
+                    </div>
+                    <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(r.totalBeforeTax)}</p>
+                  </CardContent>
+                </Card>
+              ))}
+              {report.rows.length === 0 && (
+                <p className="text-sm text-muted-foreground">No trips for this party in that period.</p>
+              )}
+            </div>
+          </>
+        )}
+      </PageContainer>
+    </>
   );
 }
 

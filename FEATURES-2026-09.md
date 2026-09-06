@@ -136,3 +136,63 @@ with a test that fails without the fix.
 - `dashboard/page.tsx` calls `Date.now()` during render, which the React
   compiler flags as impure. Pre-existing (it is in `HEAD`), and fixing it
   properly means moving the clock out of render rather than a one-liner.
+
+---
+
+## Follow-up batch — bulk settlement and bill columns
+
+Two further requests, 2026-09-06.
+
+### Bulk settlement (new)
+
+A party pays a month's loads with one transfer. Before, that meant opening each
+trip, recording a receipt, approving each one and closing each one — with no
+figure anywhere saying what the party had actually paid.
+
+- **Bulk Settlement** screen: pick the party, see every open trip with a
+  balance, tick what the payment covers. The running total sits above the tab
+  bar while you tick, and confirming restates it in full before anything is
+  sent.
+- The money is still recorded **per trip** — each line is an ordinary
+  `TripTransaction` — so balances, reports and the audit trail are unchanged.
+  What is shared is the decision.
+- One approval. `Settlement` carries its own `ApprovalStatus`; its lines are
+  hidden from the individual approvals queue and refuse to be approved on their
+  own, so half a settlement cannot be approved.
+- Approving posts every receipt and closes every trip **in one
+  `SaveChanges`**. A trip closed but unpaid, or paid but left open, is the state
+  the whole feature exists to prevent — so it cannot occur.
+- Rejecting leaves every trip open and unpaid. Nothing is reversed, because
+  nothing was ever applied.
+- Each line settles that trip's **whole outstanding balance** — extras and GST
+  included, not the freight alone. Part payments stay a per-trip job.
+
+Migration `BulkSettlement` is additive: a nullable `SettlementId` on
+`TripTransactions` plus the new `Settlements` table. Every existing receipt gets
+`SettlementId = null` and stays individually approvable exactly as before.
+
+### Party bill columns
+
+- Wayment, loading and unloading are now **three named columns**, each appearing
+  only when something in the period used it. A party querying a bill asks about
+  loading specifically; a single "extras" figure gave them nothing to check.
+- **GST is charged once, on the bill's total**, not per trip. Row totals are
+  therefore pre-tax and the column sums to the pre-tax total, with tax and the
+  grand total beneath the table. The PDF, the on-screen preview and the Excel
+  export all follow the same shape.
+- The tax line names the rate ("GST @ 5%") when the whole period shares one, and
+  says plain "GST" when trips were booked at different rates — naming one of
+  them would be a lie.
+
+**Known rounding subtlety:** the GST total is the sum of each trip's rounded
+tax, not 5% recomputed on the displayed total. Those can differ by a rupee or
+two across many trips. Kept deliberately: the bill must reconcile with what each
+trip's ledger says is owed, and that is the more important of the two.
+
+### Test project now references the API
+
+`TransTrack.Tests` references `TransTrack.Api` so the PDF and Excel builders can
+be asserted on. A QuestPDF table whose header, body and footer disagree on
+column count throws at generation time — with conditional columns that is
+exactly the failure mode, and it belongs in a test run rather than in the first
+bill someone prints.

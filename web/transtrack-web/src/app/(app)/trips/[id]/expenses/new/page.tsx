@@ -12,7 +12,7 @@ import { api, ApiError } from "@/lib/api";
 import { today } from "@/lib/format";
 import type { ExpenseCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ArrowLeft } from "lucide-react";
+import { PageHeader } from "@/components/shell/page-header";
 import { iconForCategory } from "@/lib/expense-icons";
 
 const empty = "00000000-0000-0000-0000-000000000000";
@@ -52,14 +52,12 @@ export default function AddExpensePage() {
   });
 
   return (
-    <div className="mx-auto max-w-lg p-4 pb-28 sm:p-6">
-      <div className="mb-5 flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => router.push(`/trips/${params.id}`)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-semibold">Add expense</h1>
-      </div>
+    <>
+      {/* A cross, not an arrow: this is a form you are in the middle of, and
+          leaving it abandons what you were typing. */}
+      <PageHeader width="form" title="Add expense" closeTo={`/trips/${params.id}`} />
 
+      <div className="mx-auto max-w-lg p-4 pb-28 sm:p-6">
       <form
         className="space-y-6"
         onSubmit={(e) => {
@@ -140,6 +138,7 @@ export default function AddExpensePage() {
           {mutation.isPending ? "Adding…" : "Add expense"}
         </Button>
       </form>
-    </div>
+      </div>
+    </>
   );
 }

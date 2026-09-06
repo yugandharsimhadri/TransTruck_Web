@@ -163,9 +163,11 @@ public static class ReportExcelBuilder
         // Freight and the extras stay in their own columns rather than being
         // folded into one figure — the whole point of billing them separately
         // is that the party can see what each one was.
+        // No per-trip GST column: tax is charged once on the bill's total, so
+        // it lands under the table with the grand total, matching the PDF.
         string[] headers = [
             "S NO", "DATE", "LR NO", "VEHICLE NO", "FROM", "TO", "WEIGHT", "RATE",
-            "FREIGHT", "WAYMENT", "LOADING", "UNLOADING", "GST", "TOTAL"
+            "FREIGHT", "WAYMENT", "LOADING", "UNLOADING", "TOTAL"
         ];
         for (var i = 0; i < headers.Length; i++) sheet.Cell(2, i + 1).Value = headers[i];
         sheet.Row(2).Style.Font.Bold = true;
@@ -185,8 +187,7 @@ public static class ReportExcelBuilder
             sheet.Cell(row, 10).Value = r.WaymentCharge;
             sheet.Cell(row, 11).Value = r.LoadingCharge;
             sheet.Cell(row, 12).Value = r.UnloadingCharge;
-            sheet.Cell(row, 13).Value = r.GstAmount;
-            sheet.Cell(row, 14).Value = r.GrandTotal;
+            sheet.Cell(row, 13).Value = r.TotalBeforeTax;
             row++;
         }
 
@@ -195,9 +196,21 @@ public static class ReportExcelBuilder
         sheet.Cell(row, 10).Value = report.TotalWayment;
         sheet.Cell(row, 11).Value = report.TotalLoading;
         sheet.Cell(row, 12).Value = report.TotalUnloading;
-        sheet.Cell(row, 13).Value = report.TotalGst;
-        sheet.Cell(row, 14).Value = report.GrandTotal;
+        sheet.Cell(row, 13).Value = report.TotalBeforeTax;
         sheet.Row(row).Style.Font.Bold = true;
+
+        // Tax and the amount payable, beneath the table the same way the
+        // printed bill shows them.
+        if (report.HasGst)
+        {
+            row++;
+            sheet.Cell(row, 12).Value = report.GstLabel;
+            sheet.Cell(row, 13).Value = report.TotalGst;
+            row++;
+            sheet.Cell(row, 12).Value = "GRAND TOTAL";
+            sheet.Cell(row, 13).Value = report.GrandTotal;
+            sheet.Row(row).Style.Font.Bold = true;
+        }
 
         sheet.Columns().AdjustToContents();
         return ToBytes(workbook);

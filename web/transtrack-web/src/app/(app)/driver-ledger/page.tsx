@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate, today } from "@/lib/format";
@@ -53,68 +54,72 @@ export default function DriverLedgerPage() {
   });
 
   return (
-    <PageContainer className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Driver Ledger</h1>
+    <>
+      <PageHeader
+        title="Driver Ledger"
+        backTo="/dashboard"
+        actions={
+          driverId && (
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground">
+                <Plus className="h-4 w-4" /> Add
+              </SheetTrigger>
+              <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(2rem+env(safe-area-inset-bottom))]">
+                <SheetHeader>
+                  <SheetTitle>Add ledger entry</SheetTitle>
+                </SheetHeader>
+                <AddLedgerEntryForm
+                  driverId={driverId}
+                  onSaved={() => {
+                    setOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ["driver-ledger", driverId] });
+                  }}
+                />
+              </SheetContent>
+            </Sheet>
+          )
+        }
+      />
+      <PageContainer className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-base">Driver</Label>
+          <Select value={driverId} onValueChange={(v) => setDriverId(v ?? "")}>
+            <SelectTrigger className="h-12 w-full text-base">
+              <SelectValue placeholder="Choose a driver">
+                {(v: string) => driversQuery.data?.find((x) => x.id === v)?.display ?? "Choose a driver"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {driversQuery.data?.map((d) => <SelectItem key={d.id} value={d.id}>{d.display}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
         {driverId && (
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground">
-              <Plus className="h-4 w-4" /> Add
-            </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(2rem+env(safe-area-inset-bottom))]">
-              <SheetHeader>
-                <SheetTitle>Add ledger entry</SheetTitle>
-              </SheetHeader>
-              <AddLedgerEntryForm
-                driverId={driverId}
-                onSaved={() => {
-                  setOpen(false);
-                  queryClient.invalidateQueries({ queryKey: ["driver-ledger", driverId] });
-                }}
-              />
-            </SheetContent>
-          </Sheet>
+          <>
+            <Card>
+              <CardContent className="flex items-center justify-between p-4">
+                <span className="text-sm text-muted-foreground">Advance outstanding</span>
+                <span className="text-lg font-semibold">{formatCurrency(outstandingQuery.data ?? 0)}</span>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-2">
+              {entriesQuery.data?.map((e) => (
+                <LedgerEntryRow key={e.id} driverId={driverId} entry={e} />
+              ))}
+              {entriesQuery.data?.length === 0 && (
+                <TruckEmpty
+                  variant="lorry"
+                  title="No ledger entries yet"
+                  hint="Salary, advances and deductions for this driver will appear here."
+                />
+              )}
+            </div>
+          </>
         )}
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-base">Driver</Label>
-        <Select value={driverId} onValueChange={(v) => setDriverId(v ?? "")}>
-          <SelectTrigger className="h-12 w-full text-base">
-            <SelectValue placeholder="Choose a driver">
-              {(v: string) => driversQuery.data?.find((x) => x.id === v)?.display ?? "Choose a driver"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {driversQuery.data?.map((d) => <SelectItem key={d.id} value={d.id}>{d.display}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {driverId && (
-        <>
-          <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <span className="text-sm text-muted-foreground">Advance outstanding</span>
-              <span className="text-lg font-semibold">{formatCurrency(outstandingQuery.data ?? 0)}</span>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-2">
-            {entriesQuery.data?.map((e) => (
-              <LedgerEntryRow key={e.id} driverId={driverId} entry={e} />
-            ))}
-            {entriesQuery.data?.length === 0 && (
-              <TruckEmpty
-                variant="lorry"
-                title="No ledger entries yet"
-                hint="Salary, advances and deductions for this driver will appear here."
-              />
-            )}
-          </div>
-        </>
-      )}
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }
 

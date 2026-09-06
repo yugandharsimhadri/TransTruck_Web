@@ -21,6 +21,30 @@ public sealed class MastersUatTests(UatFixture fixture, ITestOutputHelper output
 }
 
 /// <summary>
+/// Nobody is ever stranded. Every screen carries the control that leaves it in the same place — top
+/// left, before any scrolling — and the shape of that control says which kind of leaving it is: an
+/// arrow up the hierarchy, or a cross out of a form you were part way through.
+/// </summary>
+public sealed class NavigationUatTests(UatFixture fixture, ITestOutputHelper output) : UatTestBase(fixture, output)
+{
+    [Theory]
+    [MemberData(nameof(BothViewports))]
+    public Task Every_screen_can_be_left_from_the_top(Viewport viewport) => RunWorkflowAsync("WayOut", viewport);
+}
+
+/// <summary>
+/// One payment closing a month's work. The whole value is in the join — money posted against every
+/// trip and every trip closed, together, and only once the Owner has agreed the total — so this is
+/// walked end to end rather than probed a piece at a time.
+/// </summary>
+public sealed class BulkSettlementUatTests(UatFixture fixture, ITestOutputHelper output) : UatTestBase(fixture, output)
+{
+    [Theory]
+    [MemberData(nameof(BothViewports))]
+    public Task Settling_a_month_with_one_payment(Viewport viewport) => RunWorkflowAsync("BulkSettlement", viewport);
+}
+
+/// <summary>
 /// Money coming in, and the owner's check on it. Staff record a payment the moment a party pays, but
 /// the figure does not count towards the trip's balance until the owner has approved it. That gap is
 /// the control: the books are written by the owner's decision, not by whoever happened to be at the

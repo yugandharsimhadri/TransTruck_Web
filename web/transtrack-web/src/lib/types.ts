@@ -153,6 +153,37 @@ export interface TripTransaction {
   approvedByUserId?: string | null;
   approvedOn?: string | null;
   approvalRemarks?: string | null;
+  /** Set when this receipt is one line of a bulk settlement, which is
+   *  approved as a whole rather than line by line. */
+  settlementId?: string | null;
+}
+
+/** One of a party's open trips, on the bulk-settlement picking list. */
+export interface SettleableTrip {
+  tripId: string;
+  tripNo: string;
+  lrNo?: string | null;
+  date: string;
+  vehicleRegNo: string;
+  grandTotal: number;
+  received: number;
+  balance: number;
+}
+
+/** One payment from a party covering several trips, approved as one decision. */
+export interface Settlement {
+  id: string;
+  partyId: string;
+  party?: Party;
+  date: string;
+  paymentMode: PaymentMode;
+  remarks?: string | null;
+  approvalStatus: ApprovalStatus;
+  approvedOn?: string | null;
+  approvalRemarks?: string | null;
+  transactions: TripTransaction[];
+  totalAmount: number;
+  tripCount: number;
 }
 
 export interface Trip {
@@ -481,6 +512,15 @@ export interface PartyReport {
   grandTotal: number;
   hasExtras: boolean;
   hasGst: boolean;
+  /** Each addition gets a column only when something in the period used it. */
+  hasWayment: boolean;
+  hasLoading: boolean;
+  hasUnloading: boolean;
+  /** The one rate the whole bill was taxed at, or null when trips in the
+   *  period were booked at different rates. */
+  gstRate?: number | null;
+  /** "GST @ 5%" when the bill shares a rate, otherwise plain "GST". */
+  gstLabel: string;
 }
 
 export interface VehicleMonthlySaving {

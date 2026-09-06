@@ -16,6 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
 import { formatCurrency, formatDate, today } from "@/lib/format";
@@ -41,72 +42,76 @@ export default function MaintenancePage() {
   const totalAmount = recordsQuery.data?.reduce((sum, r) => sum + r.amount, 0) ?? 0;
 
   return (
-    <PageContainer className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Maintenance</h1>
+    <>
+      <PageHeader
+        title="Maintenance"
+        backTo="/dashboard"
+        actions={
+          vehicleId && (
+            <Sheet open={open} onOpenChange={setOpen}>
+              <SheetTrigger
+                className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
+              >
+                <Plus className="h-4 w-4" /> Add
+              </SheetTrigger>
+              <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(2rem+env(safe-area-inset-bottom))]">
+                <SheetHeader>
+                  <SheetTitle>Add maintenance record</SheetTitle>
+                </SheetHeader>
+                <AddMaintenanceForm
+                  vehicleId={vehicleId}
+                  onSaved={() => {
+                    setOpen(false);
+                    queryClient.invalidateQueries({ queryKey: ["maintenance", vehicleId] });
+                  }}
+                />
+              </SheetContent>
+            </Sheet>
+          )
+        }
+      />
+      <PageContainer className="space-y-4">
+        <div className="space-y-2">
+          <Label className="text-base">Vehicle</Label>
+          <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
+            <SelectTrigger className="h-12 w-full text-base">
+              <SelectValue placeholder="Choose a vehicle">
+                {(v: string) => vehiclesQuery.data?.find((x) => x.id === v)?.display ?? "Choose a vehicle"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {vehiclesQuery.data?.map((v) => (
+                <SelectItem key={v.id} value={v.id}>{v.display}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         {vehicleId && (
-          <Sheet open={open} onOpenChange={setOpen}>
-            <SheetTrigger
-              className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"
-            >
-              <Plus className="h-4 w-4" /> Add
-            </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-3xl pb-[calc(2rem+env(safe-area-inset-bottom))]">
-              <SheetHeader>
-                <SheetTitle>Add maintenance record</SheetTitle>
-              </SheetHeader>
-              <AddMaintenanceForm
-                vehicleId={vehicleId}
-                onSaved={() => {
-                  setOpen(false);
-                  queryClient.invalidateQueries({ queryKey: ["maintenance", vehicleId] });
-                }}
-              />
-            </SheetContent>
-          </Sheet>
+          <>
+            <Card>
+              <CardContent className="flex items-center justify-between p-4">
+                <span className="text-sm text-muted-foreground">Total spent</span>
+                <span className="text-lg font-semibold">{formatCurrency(totalAmount)}</span>
+              </CardContent>
+            </Card>
+
+            <div className="space-y-2">
+              {recordsQuery.data?.map((r) => (
+                <MaintenanceRow key={r.id} vehicleId={vehicleId} record={r} />
+              ))}
+              {recordsQuery.data?.length === 0 && (
+                <TruckEmpty
+                  variant="pickup"
+                  title="No service records yet"
+                  hint="Tap Add to log the first service for this vehicle."
+                />
+              )}
+            </div>
+          </>
         )}
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-base">Vehicle</Label>
-        <Select value={vehicleId} onValueChange={(v) => setVehicleId(v ?? "")}>
-          <SelectTrigger className="h-12 w-full text-base">
-            <SelectValue placeholder="Choose a vehicle">
-              {(v: string) => vehiclesQuery.data?.find((x) => x.id === v)?.display ?? "Choose a vehicle"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            {vehiclesQuery.data?.map((v) => (
-              <SelectItem key={v.id} value={v.id}>{v.display}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      {vehicleId && (
-        <>
-          <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <span className="text-sm text-muted-foreground">Total spent</span>
-              <span className="text-lg font-semibold">{formatCurrency(totalAmount)}</span>
-            </CardContent>
-          </Card>
-
-          <div className="space-y-2">
-            {recordsQuery.data?.map((r) => (
-              <MaintenanceRow key={r.id} vehicleId={vehicleId} record={r} />
-            ))}
-            {recordsQuery.data?.length === 0 && (
-              <TruckEmpty
-                variant="pickup"
-                title="No service records yet"
-                hint="Tap Add to log the first service for this vehicle."
-              />
-            )}
-          </div>
-        </>
-      )}
-    </PageContainer>
+      </PageContainer>
+    </>
   );
 }
 

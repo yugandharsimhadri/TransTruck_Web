@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { api } from "@/lib/api";
 import type { AuditEntry } from "@/lib/types";
 import { AuditTrail } from "@/components/audit-trail";
@@ -53,54 +54,54 @@ function ActivityScreen() {
   });
 
   return (
-    <PageContainer className="space-y-4">
-      <div>
-        <h1 className="text-xl font-semibold">Activity</h1>
-        <p className="text-sm text-muted-foreground">
-          Every addition, change and deletion — who did it and when.
-        </p>
-      </div>
-
-      <Card>
-        <CardContent className="grid grid-cols-2 gap-3 p-4">
-          <div className="col-span-2 space-y-1.5">
-            <Label className="text-xs">Record type</Label>
-            <Select value={entityType} onValueChange={(v) => setEntityType(v ?? "")}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Everything">
-                  {(v: string) => recordTypes.find((r) => r.value === v)?.label ?? "Everything"}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {recordTypes.map((r) => (
-                  <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">From</Label>
-            <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">To</Label>
-            <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
-
-      {query.isLoading ? (
-        <TruckLoading message="Loading activity…" seed="activity" />
-      ) : (
+    <>
+      <PageHeader
+        title="Activity"
+        subtitle="Every addition, change and deletion — who did it and when."
+        backTo="/dashboard"
+      />
+      <PageContainer className="space-y-4">
         <Card>
-          <CardContent className="p-4">
-            <AuditTrail
-              entries={query.data ?? []}
-              emptyText="No activity in this period."
-            />
+          <CardContent className="grid grid-cols-2 gap-3 p-4">
+            <div className="col-span-2 space-y-1.5">
+              <Label className="text-xs">Record type</Label>
+              <Select value={entityType} onValueChange={(v) => setEntityType(v ?? "")}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Everything">
+                    {(v: string) => recordTypes.find((r) => r.value === v)?.label ?? "Everything"}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {recordTypes.map((r) => (
+                    <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">From</Label>
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">To</Label>
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
           </CardContent>
         </Card>
-      )}
-    </PageContainer>
+
+        {query.isLoading ? (
+          <TruckLoading message="Loading activity…" seed="activity" />
+        ) : (
+          <Card>
+            <CardContent className="p-4">
+              <AuditTrail
+                entries={query.data ?? []}
+                emptyText="No activity in this period."
+              />
+            </CardContent>
+          </Card>
+        )}
+      </PageContainer>
+    </>
   );
 }

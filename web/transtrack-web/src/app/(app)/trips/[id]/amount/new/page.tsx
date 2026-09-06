@@ -12,7 +12,8 @@ import { api, ApiError } from "@/lib/api";
 import { today } from "@/lib/format";
 import type { PaymentMode, ReceiptType } from "@/lib/types";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Banknote, Landmark, Smartphone, FileText } from "lucide-react";
+import { Banknote, Landmark, Smartphone, FileText } from "lucide-react";
+import { PageHeader } from "@/components/shell/page-header";
 
 const empty = "00000000-0000-0000-0000-000000000000";
 const quickAmounts = [1000, 2000, 5000, 10000, 20000];
@@ -64,14 +65,12 @@ export default function AddAmountPage() {
   });
 
   return (
-    <div className="mx-auto max-w-lg p-4 pb-28 sm:p-6">
-      <div className="mb-5 flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={() => router.push(`/trips/${params.id}`)}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <h1 className="text-xl font-semibold">Add amount received</h1>
-      </div>
+    <>
+      {/* A cross, not an arrow: this is a form you are in the middle of, and
+          leaving it abandons what you were typing. */}
+      <PageHeader width="form" title="Add amount received" closeTo={`/trips/${params.id}`} />
 
+      <div className="mx-auto max-w-lg p-4 pb-28 sm:p-6">
       <form
         className="space-y-6"
         onSubmit={(e) => {
@@ -166,6 +165,7 @@ export default function AddAmountPage() {
           {mutation.isPending ? "Adding…" : "Add amount"}
         </Button>
       </form>
-    </div>
+      </div>
+    </>
   );
 }

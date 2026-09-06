@@ -23,7 +23,11 @@ public class TripTransactionService(IDbContextFactory<AppDbContext> factory)
         return await db.TripTransactions.AsNoTracking()
             .Include(t => t.Trip).ThenInclude(t => t.Vehicle)
             .Include(t => t.Trip).ThenInclude(t => t.Party)
-            .Where(t => t.ApprovalStatus == ApprovalStatus.Pending && !t.IsDeleted)
+            // Receipts belonging to a bulk settlement are deliberately absent:
+            // that settlement is approved as one decision, and listing its
+            // lines here would let them be approved piecemeal — half a
+            // settlement approved is the state it exists to prevent.
+            .Where(t => t.ApprovalStatus == ApprovalStatus.Pending && !t.IsDeleted && t.SettlementId == null)
             .OrderBy(t => t.Date)
             .Take(MaxPending)
             .ToListAsync();
@@ -62,10 +66,18 @@ public class TripTransactionService(IDbContextFactory<AppDbContext> factory)
     public const string AlreadyApprovedMessage =
         "This amount has already been approved and can no longer be changed. The owner can delete it if it was wrong.";
 
+    public const string BelongsToSettlementMessage =
+        "This amount is part of a bulk settlement. Approve or reject the whole settlement instead.";
+
     private static void EnsureNotApproved(TripTransaction entity)
     {
         if (entity.ApprovalStatus == ApprovalStatus.Approved)
             throw new InvalidOperationException(AlreadyApprovedMessage);
+
+        // The screen never offers these individually, but the endpoint is
+        // reachable with an id and the rule belongs where it cannot be skipped.
+        if (entity.SettlementId is not null)
+            throw new InvalidOperationException(BelongsToSettlementMessage);
     }
 
     public async Task ApproveAsync(Guid transactionId, Guid approvedByUserId, string? remarks)

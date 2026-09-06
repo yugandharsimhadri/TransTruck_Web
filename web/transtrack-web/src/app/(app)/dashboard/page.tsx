@@ -25,6 +25,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 
 /**
  * The dashboard's job is to answer two questions in the first screenful:
@@ -74,192 +75,195 @@ export default function DashboardPage() {
 
 
   return (
-    <PageContainer className="space-y-3">
-      {/* One quiet line of context. The old greeting spent the most valuable
-          pixels on a phone telling users their own name. */}
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="truncate text-lg font-semibold">{user?.companyName}</h1>
+    <>
+      {/* No back control, and deliberately: this is home. Everywhere else in
+          the app points here, so an arrow would lead out of the app or
+          nowhere at all. */}
+      <PageHeader
+        title={user?.companyName ?? "Dashboard"}
+        actions={
+          /* The month every figure below is for. Six months at minimum, and
+             further back when there is more history than that. */
+          <select
+            aria-label="Month"
+            className="h-9 shrink-0 rounded-lg border bg-card px-2 text-sm font-medium"
+            value={current ? key(current) : ""}
+            onChange={(e) => setSelected(e.target.value)}
+          >
+            {months.map((m) => (
+              <option key={key(m)} value={key(m)}>{m.label}</option>
+            ))}
+          </select>
+        }
+      />
+      <PageContainer className="space-y-3">
+        {/* Anything that needs a decision, first — and absent entirely when
+            there's nothing to decide, so its presence always means something.
+            Expired documents are not summarised here: the alerts card that
+            follows says the same thing with the detail that makes it
+            actionable, and carrying both cost a third of a phone screen to say
+            it twice. */}
+        <div className="space-y-2">
+          {(s?.pendingApprovals ?? 0) > 0 && (
+            <AttentionRow
+              tone="warning"
+              icon={ClipboardList}
+              title={`${s!.pendingApprovals} ${s!.pendingApprovals === 1 ? "amount is" : "amounts are"} waiting for approval`}
+              detail="Approve or reject to update the trip balances"
+              href="/approvals"
+            />
+          )}
+        </div>
 
-        {/* The month every figure below is for. Six months at minimum, and
-            further back when there is more history than that. */}
-        <select
-          aria-label="Month"
-          className="h-9 shrink-0 rounded-lg border bg-card px-2 text-sm font-medium"
-          value={current ? key(current) : ""}
-          onChange={(e) => setSelected(e.target.value)}
-        >
-          {months.map((m) => (
-            <option key={key(m)} value={key(m)}>{m.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {/* Anything that needs a decision, first — and absent entirely when
-          there's nothing to decide, so its presence always means something.
-          Expired documents are not summarised here: the alerts card that
-          follows says the same thing with the detail that makes it
-          actionable, and carrying both cost a third of a phone screen to say
-          it twice. */}
-      <div className="space-y-2">
-        {(s?.pendingApprovals ?? 0) > 0 && (
-          <AttentionRow
-            tone="warning"
-            icon={ClipboardList}
-            title={`${s!.pendingApprovals} ${s!.pendingApprovals === 1 ? "amount is" : "amounts are"} waiting for approval`}
-            detail="Approve or reject to update the trip balances"
-            href="/approvals"
-          />
+        {/* Vehicle document alerts: expired first (needs action now), then
+            expiring soon (worth knowing, not an emergency). Sits up here with
+            the other things needing a decision because it is now the only
+            notice of an expired document — there used to be a summary row
+            above as well, which said the same thing twice and cost a third of
+            a phone screen doing it. */}
+        {alerts.length > 0 && (
+          <Card>
+            <CardContent className="space-y-2 p-3">
+              <p className="text-sm font-medium">Vehicle document alerts</p>
+              {expired.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase text-destructive">Expired</p>
+                  {expired.map((a, i) => <AlertRow key={i} alert={a} />)}
+                </div>
+              )}
+              {alerts.length > expired.length && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase text-warning">Expiring soon</p>
+                  {alerts.filter((a) => !a.isExpired).map((a, i) => <AlertRow key={i} alert={a} />)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
-      </div>
 
-      {/* Vehicle document alerts: expired first (needs action now), then
-          expiring soon (worth knowing, not an emergency). Sits up here with
-          the other things needing a decision because it is now the only
-          notice of an expired document — there used to be a summary row
-          above as well, which said the same thing twice and cost a third of
-          a phone screen doing it. */}
-      {alerts.length > 0 && (
-        <Card>
-          <CardContent className="space-y-2 p-3">
-            <p className="text-sm font-medium">Vehicle document alerts</p>
-            {expired.length > 0 && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase text-destructive">Expired</p>
-                {expired.map((a, i) => <AlertRow key={i} alert={a} />)}
+        {/* The hero figure: money still owed to the company. It's the number a
+            fleet owner opens the app to check.
+
+            Three states, because the balance genuinely can go either way: a
+            party can pay an advance larger than the freight, which leaves it
+            negative. Rendering that as "Still to collect -₹5,000" reads as a
+            bug, so each case gets its own wording. */}
+        <Link href="/trips" className="block">
+          <Card className="transition active:scale-[0.99]">
+            <CardContent className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  {s ? (
+                    <>
+                      <p className="text-sm text-muted-foreground">{balanceLabel(s.outstandingBalance)}</p>
+                      <p
+                        className={cn(
+                          "mt-1 text-4xl font-semibold tracking-tight tabular-nums",
+                          s.outstandingBalance === 0 && "text-success",
+                        )}
+                      >
+                        {s.outstandingBalance === 0
+                          ? "All settled"
+                          : formatCurrency(Math.abs(s.outstandingBalance))}
+                      </p>
+                      <p className="mt-1 text-xs text-muted-foreground">{balanceHint(s.outstandingBalance)}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">Still to collect</p>
+                      <Skeleton className="mt-2 h-10 w-40" />
+                    </>
+                  )}
+                </div>
+                <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
               </div>
-            )}
-            {alerts.length > expired.length && (
-              <div className="space-y-1.5">
-                <p className="text-xs font-semibold uppercase text-warning">Expiring soon</p>
-                {alerts.filter((a) => !a.isExpired).map((a, i) => <AlertRow key={i} alert={a} />)}
+            </CardContent>
+          </Card>
+        </Link>
+
+        {/* The month's books: what came in, then everything that went out,
+            then what was left. Ordered so the eye can run down the costs and
+            land on the profit — the figure the whole screen exists for. */}
+        <div className="grid grid-cols-2 gap-3">
+          <MoneyTile
+            label="Trip earnings"
+            value={s ? formatCurrency(s.tripEarnings) : null}
+            icon={TrendingUp}
+            tone="positive"
+            href="/reports"
+          />
+          <MoneyTile
+            label="Trip expenses"
+            value={s ? formatCurrency(s.tripExpenses) : null}
+            icon={Receipt}
+            tone="neutral"
+            href="/reports"
+          />
+          <MoneyTile
+            label="Maintenance"
+            value={s ? formatCurrency(s.maintenanceCost) : null}
+            icon={Wrench}
+            tone="neutral"
+            href="/maintenance"
+          />
+          <MoneyTile
+            label="Driver salaries"
+            value={s ? formatCurrency(s.expectedSalaries) : null}
+            icon={Users}
+            tone="neutral"
+            href="/masters"
+            // Expected, not paid: the wage bill the month owes, worked out from
+            // the drivers on the books. Says so out loud because a figure that
+            // never moves when you settle up is otherwise confusing.
+            note="Expected, whether paid or not"
+          />
+          <MoneyTile
+            label="Insurance, tax & papers"
+            value={s ? formatCurrency(s.recurringExpenses) : null}
+            icon={FileText}
+            tone="neutral"
+            href="/vehicles"
+          />
+          <MoneyTile
+            label="Net profit"
+            value={s ? formatCurrency(s.netProfit) : null}
+            icon={Wallet}
+            tone={s && s.netProfit < 0 ? "negative" : "positive"}
+            href="/reports"
+            note="Earnings less every cost above"
+          />
+        </div>
+
+        {/* Reference figures, deliberately quieter than everything above. */}
+        <Link href="/trips" className="block">
+          <Card className="transition active:scale-[0.99]">
+            <CardContent className="flex items-center gap-3 p-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
+                <Truck className="h-5 w-5" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium">
+                  {s ? `${s.trips} ${s.trips === 1 ? "trip" : "trips"} in ${current?.label ?? "this month"}` : "Trips"}
+                </p>
+                <p className="text-xs text-muted-foreground">Tap to see them all</p>
               </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
+            </CardContent>
+          </Card>
+        </Link>
 
-      {/* The hero figure: money still owed to the company. It's the number a
-          fleet owner opens the app to check.
-
-          Three states, because the balance genuinely can go either way: a
-          party can pay an advance larger than the freight, which leaves it
-          negative. Rendering that as "Still to collect -₹5,000" reads as a
-          bug, so each case gets its own wording. */}
-      <Link href="/trips" className="block">
-        <Card className="transition active:scale-[0.99]">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                {s ? (
-                  <>
-                    <p className="text-sm text-muted-foreground">{balanceLabel(s.outstandingBalance)}</p>
-                    <p
-                      className={cn(
-                        "mt-1 text-4xl font-semibold tracking-tight tabular-nums",
-                        s.outstandingBalance === 0 && "text-success",
-                      )}
-                    >
-                      {s.outstandingBalance === 0
-                        ? "All settled"
-                        : formatCurrency(Math.abs(s.outstandingBalance))}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">{balanceHint(s.outstandingBalance)}</p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-muted-foreground">Still to collect</p>
-                    <Skeleton className="mt-2 h-10 w-40" />
-                  </>
-                )}
-              </div>
-              <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-      </Link>
-
-      {/* The month's books: what came in, then everything that went out,
-          then what was left. Ordered so the eye can run down the costs and
-          land on the profit — the figure the whole screen exists for. */}
-      <div className="grid grid-cols-2 gap-3">
-        <MoneyTile
-          label="Trip earnings"
-          value={s ? formatCurrency(s.tripEarnings) : null}
-          icon={TrendingUp}
-          tone="positive"
-          href="/reports"
-        />
-        <MoneyTile
-          label="Trip expenses"
-          value={s ? formatCurrency(s.tripExpenses) : null}
-          icon={Receipt}
-          tone="neutral"
-          href="/reports"
-        />
-        <MoneyTile
-          label="Maintenance"
-          value={s ? formatCurrency(s.maintenanceCost) : null}
-          icon={Wrench}
-          tone="neutral"
-          href="/maintenance"
-        />
-        <MoneyTile
-          label="Driver salaries"
-          value={s ? formatCurrency(s.expectedSalaries) : null}
-          icon={Users}
-          tone="neutral"
-          href="/masters"
-          // Expected, not paid: the wage bill the month owes, worked out from
-          // the drivers on the books. Says so out loud because a figure that
-          // never moves when you settle up is otherwise confusing.
-          note="Expected, whether paid or not"
-        />
-        <MoneyTile
-          label="Insurance, tax & papers"
-          value={s ? formatCurrency(s.recurringExpenses) : null}
-          icon={FileText}
-          tone="neutral"
-          href="/vehicles"
-        />
-        <MoneyTile
-          label="Net profit"
-          value={s ? formatCurrency(s.netProfit) : null}
-          icon={Wallet}
-          tone={s && s.netProfit < 0 ? "negative" : "positive"}
-          href="/reports"
-          note="Earnings less every cost above"
-        />
-      </div>
-
-      {/* Reference figures, deliberately quieter than everything above. */}
-      <Link href="/trips" className="block">
-        <Card className="transition active:scale-[0.99]">
-          <CardContent className="flex items-center gap-3 p-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent text-accent-foreground">
-              <Truck className="h-5 w-5" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium">
-                {s ? `${s.trips} ${s.trips === 1 ? "trip" : "trips"} in ${current?.label ?? "this month"}` : "Trips"}
-              </p>
-              <p className="text-xs text-muted-foreground">Tap to see them all</p>
-            </div>
-            <ChevronRight className="h-5 w-5 shrink-0 text-muted-foreground" />
-          </CardContent>
-        </Card>
-      </Link>
-
-      {/* The one thing people come here to start. Low on the screen, where a
-          thumb naturally rests on a phone. */}
-      <Button
-        size="lg"
-        nativeButton={false}
-        className="h-14 w-full text-base font-semibold"
-        render={<Link href="/trips/new" />}
-      >
-        <Plus className="h-5 w-5" /> Book a trip
-      </Button>
-    </PageContainer>
+        {/* The one thing people come here to start. Low on the screen, where a
+            thumb naturally rests on a phone. */}
+        <Button
+          size="lg"
+          nativeButton={false}
+          className="h-14 w-full text-base font-semibold"
+          render={<Link href="/trips/new" />}
+        >
+          <Plus className="h-5 w-5" /> Book a trip
+        </Button>
+      </PageContainer>
+    </>
   );
 }
 

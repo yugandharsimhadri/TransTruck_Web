@@ -42,19 +42,30 @@ public static class PartyBillDocument
                 {
                     table.ColumnsDefinition(c =>
                     {
-                        c.ConstantColumn(24);                 // S.No
-                        c.RelativeColumn(1.2f);               // Date
-                        c.RelativeColumn(1.1f);               // LR No
-                        c.RelativeColumn(1.3f);               // Vehicle
-                        c.RelativeColumn(2.2f);               // Route
-                        c.RelativeColumn(1f);                 // Weight
-                        c.RelativeColumn(1f);                 // Rate
+                        // Widths are tight because a fully-loaded bill runs to
+                        // twelve columns on A4 portrait. The route gives up the
+                        // most room: it wraps onto a second line and stays
+                        // readable, whereas a money column that wraps splits a
+                        // figure across two lines, and "UNLOADING" broken over
+                        // a line break reads as a different word.
+                        c.ConstantColumn(20);                 // S.No
+                        c.RelativeColumn(1.15f);              // Date
+                        c.RelativeColumn(1.05f);              // LR No
+                        c.RelativeColumn(1.5f);               // Vehicle
+                        c.RelativeColumn(1.5f);               // Route
+                        c.RelativeColumn(0.85f);              // Weight
+                        c.RelativeColumn(0.95f);              // Rate
                         c.RelativeColumn(1.2f);               // Freight
 
-                        if (report.HasExtras) c.RelativeColumn(1.2f);   // Extras
-                        if (report.HasGst) c.RelativeColumn(1.1f);      // GST
+                        // Each addition named in its own column rather than
+                        // lumped into one "extras" figure: a party querying a
+                        // bill asks about loading specifically, and a single
+                        // total gives them nothing to check against.
+                        if (report.HasWayment) c.RelativeColumn(1.15f);
+                        if (report.HasLoading) c.RelativeColumn(1.15f);
+                        if (report.HasUnloading) c.RelativeColumn(1.45f);
 
-                        c.RelativeColumn(1.3f);               // Total
+                        c.RelativeColumn(1.35f);              // Total
                     });
 
                     table.Header(h =>
@@ -62,7 +73,7 @@ public static class PartyBillDocument
                         void Head(string text, bool right = false)
                         {
                             var cell = h.Cell().BorderBottom(0.75f).BorderColor(PdfHelpers.Line).PaddingBottom(4).PaddingRight(2);
-                            (right ? cell.AlignRight() : cell).Text(text).FontSize(7.5f).SemiBold().FontColor(PdfHelpers.Muted);
+                            (right ? cell.AlignRight() : cell).Text(text).FontSize(7f).SemiBold().FontColor(PdfHelpers.Muted);
                         }
 
                         Head("#");
@@ -73,8 +84,9 @@ public static class PartyBillDocument
                         Head("WEIGHT", right: true);
                         Head("RATE", right: true);
                         Head("FREIGHT", right: true);
-                        if (report.HasExtras) Head("EXTRAS", right: true);
-                        if (report.HasGst) Head("GST", right: true);
+                        if (report.HasWayment) Head("WAYMENT", right: true);
+                        if (report.HasLoading) Head("LOADING", right: true);
+                        if (report.HasUnloading) Head("UNLOADING", right: true);
                         Head("TOTAL", right: true);
                     });
 
@@ -94,9 +106,14 @@ public static class PartyBillDocument
                         Cell(r.Weight is { } w ? $"{w:N3}" : "—", right: true);
                         Cell(r.Rate is { } rate ? $"{rate:N2}" : "—", right: true);
                         Cell($"{r.Amount:N2}", right: true);
-                        if (report.HasExtras) Cell(r.TotalExtras > 0 ? $"{r.TotalExtras:N2}" : "—", right: true);
-                        if (report.HasGst) Cell(r.GstAmount > 0 ? $"{r.GstAmount:N2}" : "—", right: true);
-                        Cell($"{r.GrandTotal:N2}", right: true);
+                        if (report.HasWayment) Cell(r.WaymentCharge > 0 ? $"{r.WaymentCharge:N2}" : "—", right: true);
+                        if (report.HasLoading) Cell(r.LoadingCharge > 0 ? $"{r.LoadingCharge:N2}" : "—", right: true);
+                        if (report.HasUnloading) Cell(r.UnloadingCharge > 0 ? $"{r.UnloadingCharge:N2}" : "—", right: true);
+
+                        // Before tax: GST is charged once on the bill's total
+                        // beneath the table, so adding it per row as well would
+                        // make the column sum to more than the bill.
+                        Cell($"{r.TotalBeforeTax:N2}", right: true);
                     }
 
                     // The foot repeats each column's own total, so the bill can
@@ -116,15 +133,17 @@ public static class PartyBillDocument
                     Foot("", right: true);
                     Foot("TOTAL", right: true);
                     Foot($"{report.Total:N2}", right: true);
-                    if (report.HasExtras) Foot($"{report.TotalExtras:N2}", right: true);
-                    if (report.HasGst) Foot($"{report.TotalGst:N2}", right: true);
-                    Foot($"{report.GrandTotal:N2}", right: true);
+                    if (report.HasWayment) Foot($"{report.TotalWayment:N2}", right: true);
+                    if (report.HasLoading) Foot($"{report.TotalLoading:N2}", right: true);
+                    if (report.HasUnloading) Foot($"{report.TotalUnloading:N2}", right: true);
+                    Foot($"{report.TotalBeforeTax:N2}", right: true);
                 });
 
-                // The breakdown, spelled out beneath the table — the same
-                // freight → extras → tax → total the per-trip bill shows, so
-                // the two reconcile line for line.
-                if (report.HasExtras || report.HasGst)
+                // Tax is charged once, on the bill's total, so it lives here
+                // rather than in the table. Without GST the table's own TOTAL
+                // is already the amount payable and this block would only
+                // repeat it.
+                if (report.HasGst)
                 {
                     col.Item().PaddingTop(10).AlignRight().Width(240).Table(summary =>
                     {
@@ -137,12 +156,8 @@ public static class PartyBillDocument
                             if (bold) { l.Bold(); v.Bold(); }
                         }
 
-                        Line("Freight", report.Total);
-                        if (report.TotalWayment > 0) Line("Wayment", report.TotalWayment);
-                        if (report.TotalLoading > 0) Line("Loading", report.TotalLoading);
-                        if (report.TotalUnloading > 0) Line("Unloading", report.TotalUnloading);
-                        if (report.HasExtras) Line("Total before tax", report.TotalBeforeTax, bold: true);
-                        if (report.HasGst) Line("GST", report.TotalGst);
+                        Line("Total before tax", report.TotalBeforeTax);
+                        Line(report.GstLabel, report.TotalGst);
                         Line("Grand total", report.GrandTotal, bold: true);
                     });
                 }

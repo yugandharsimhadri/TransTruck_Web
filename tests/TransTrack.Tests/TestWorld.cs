@@ -44,6 +44,7 @@ public sealed class TestWorld : IAsyncDisposable
     public VehicleExpenseService VehicleExpenses { get; }
     public DashboardService Dashboard { get; }
     public VehicleService Vehicles { get; }
+    public SettlementService Settlements { get; }
 
     private TestWorld()
     {
@@ -66,6 +67,7 @@ public sealed class TestWorld : IAsyncDisposable
         VehicleExpenses = new VehicleExpenseService(Factory);
         Dashboard = new DashboardService(Factory);
         Vehicles = new VehicleService(Factory);
+        Settlements = new SettlementService(Factory);
     }
 
     public static async Task<TestWorld> CreateAsync()

@@ -53,9 +53,15 @@ public class DashboardService(IDbContextFactory<AppDbContext> factory)
             .Where(d => !d.IsDeleted && d.IsActive)
             .SumAsync(d => d.Salary);
 
+        // One waiting decision per line, plus one per bulk settlement — the
+        // settlement's own lines are excluded so a twenty-trip settlement
+        // reads as the single approval it actually is.
         var pendingApprovals = await db.TripTransactions
-            .Where(t => !t.IsDeleted && t.ApprovalStatus == ApprovalStatus.Pending)
-            .CountAsync();
+            .Where(t => !t.IsDeleted && t.ApprovalStatus == ApprovalStatus.Pending && t.SettlementId == null)
+            .CountAsync()
+            + await db.Settlements
+                .Where(s => !s.IsDeleted && s.ApprovalStatus == ApprovalStatus.Pending)
+                .CountAsync();
 
         // Never month-filtered, on purpose. This is every unclosed trip since
         // the company started — "how much is still out there" — and scoping it

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
 import type { Company, UserSummary, UserRole } from "@/lib/types";
@@ -41,17 +42,19 @@ function SettingsScreen() {
   const canManageCompany = user?.role === "Owner" || user?.role === "CoOwner";
 
   return (
-    <PageContainer className="space-y-4">
-      <h1 className="text-xl font-semibold">Settings</h1>
-      <Tabs defaultValue={canManageCompany ? "company" : "users"}>
-        <TabsList>
-          {canManageCompany && <TabsTrigger value="company">Company</TabsTrigger>}
-          <TabsTrigger value="users">Users</TabsTrigger>
-        </TabsList>
-        {canManageCompany && <TabsContent value="company"><CompanyTab /></TabsContent>}
-        <TabsContent value="users"><UsersTab /></TabsContent>
-      </Tabs>
-    </PageContainer>
+    <>
+      <PageHeader title="Settings" backTo="/dashboard" />
+      <PageContainer className="space-y-4">
+        <Tabs defaultValue={canManageCompany ? "company" : "users"}>
+          <TabsList>
+            {canManageCompany && <TabsTrigger value="company">Company</TabsTrigger>}
+            <TabsTrigger value="users">Users</TabsTrigger>
+          </TabsList>
+          {canManageCompany && <TabsContent value="company"><CompanyTab /></TabsContent>}
+          <TabsContent value="users"><UsersTab /></TabsContent>
+        </Tabs>
+      </PageContainer>
+    </>
   );
 }
 

@@ -187,7 +187,8 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
         var rows = trips.Select((t, i) => new PartyTripRow(
             i + 1, t.Date, t.Vehicle.RegNo, t.FromCity.Name, t.ToCity.Name,
             t.Weight, t.Rate, t.Amount,
-            t.LrNo, t.WaymentCharge, t.LoadingCharge, t.UnloadingCharge, t.GstAmount)).ToList();
+            t.LrNo, t.WaymentCharge, t.LoadingCharge, t.UnloadingCharge, t.GstAmount,
+            t.GstPercentage)).ToList();
 
         return new PartyReport(party.Name, DescribePeriod(from, to), rows);
     }

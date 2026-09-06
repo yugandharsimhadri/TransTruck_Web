@@ -14,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PageContainer } from "@/components/shell/page-container";
+import { PageHeader } from "@/components/shell/page-header";
 import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api } from "@/lib/api";
@@ -79,124 +80,128 @@ export default function TripsPage() {
   const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/api/vehicles") });
 
   return (
-    <PageContainer className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Trips</h1>
-        <Button
-          size="sm"
-          nativeButton={false}
-          render={
-            <Link href="/trips/new">
-              <Plus className="h-4 w-4" /> New trip
-            </Link>
-          }
-        />
-      </div>
-
-      <div className="space-y-3 rounded-2xl border p-3">
-        <div className="grid grid-cols-2 gap-3">
+    <>
+      <PageHeader
+        title="Trips"
+        backTo="/dashboard"
+        actions={
+          <Button
+            size="sm"
+            nativeButton={false}
+            render={
+              <Link href="/trips/new">
+                <Plus className="h-4 w-4" /> New trip
+              </Link>
+            }
+          />
+        }
+      />
+      <PageContainer className="space-y-4">
+        <div className="space-y-3 rounded-2xl border p-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Status</Label>
+              <Select value={filter} onValueChange={(v) => v && setFilter(v as typeof filter)}>
+                <SelectTrigger className="h-11 w-full">
+                  <SelectValue>{(v: typeof filter) => (v === "open" ? "Open" : v === "closed" ? "Closed" : "All")}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Vehicle</Label>
+              <SearchablePicker
+                label="Vehicle"
+                placeholder="All vehicles"
+                value={regNo}
+                onSelect={setRegNo}
+                options={[
+                  { id: "", label: "All vehicles" },
+                  ...(vehiclesQuery.data ?? []).map((v) => ({ id: v.regNo, label: v.regNo })),
+                ]}
+              />
+            </div>
+          </div>
           <div className="space-y-1">
-            <Label className="text-xs">Status</Label>
-            <Select value={filter} onValueChange={(v) => v && setFilter(v as typeof filter)}>
+            <Label className="text-xs">Sort by</Label>
+            <Select value={sort} onValueChange={(v) => v && setSort(v as SortKey)}>
               <SelectTrigger className="h-11 w-full">
-                <SelectValue>{(v: typeof filter) => (v === "open" ? "Open" : v === "closed" ? "Closed" : "All")}</SelectValue>
+                <SelectValue>{(v: SortKey) => sortLabels[v]}</SelectValue>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
-                <SelectItem value="all">All</SelectItem>
+                {(Object.keys(sortLabels) as SortKey[]).map((k) => (
+                  <SelectItem key={k} value={k}>{sortLabels[k]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Vehicle</Label>
-            <SearchablePicker
-              label="Vehicle"
-              placeholder="All vehicles"
-              value={regNo}
-              onSelect={setRegNo}
-              options={[
-                { id: "", label: "All vehicles" },
-                ...(vehiclesQuery.data ?? []).map((v) => ({ id: v.regNo, label: v.regNo })),
-              ]}
-            />
-          </div>
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Sort by</Label>
-          <Select value={sort} onValueChange={(v) => v && setSort(v as SortKey)}>
-            <SelectTrigger className="h-11 w-full">
-              <SelectValue>{(v: SortKey) => sortLabels[v]}</SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {(Object.keys(sortLabels) as SortKey[]).map((k) => (
-                <SelectItem key={k} value={k}>{sortLabels[k]}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
 
-      <div className="space-y-2">
-        {trips.map((t) => (
-          <Link key={t.id} href={`/trips/${t.id}`}>
-            <Card className="transition hover:shadow-md">
-              <CardContent className="flex items-center justify-between gap-3 p-4">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
-                    {t.tripNo} · {t.vehicleRegNo} · {formatDate(t.date)}
-                  </p>
-                  <p className="truncate text-sm text-muted-foreground">
-                    {t.fromCity} → {t.toCity} · {t.partyName}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  {/* The whole invoice, not the freight — a trip carrying
-                      extras is worth more than weight × rate, and showing the
-                      smaller figure beside a larger balance reads as an error. */}
-                  <p className="font-semibold">{formatCurrency(t.grandTotal)}</p>
-                  {t.totalExtras > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      incl. {formatCurrency(t.totalExtras)} extras
-                      {t.gstAmount > 0 ? ` + ${formatCurrency(t.gstAmount)} GST` : ""}
+        <div className="space-y-2">
+          {trips.map((t) => (
+            <Link key={t.id} href={`/trips/${t.id}`}>
+              <Card className="transition hover:shadow-md">
+                <CardContent className="flex items-center justify-between gap-3 p-4">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">
+                      {t.tripNo} · {t.vehicleRegNo} · {formatDate(t.date)}
                     </p>
-                  )}
-                  <Badge variant={t.status === "Open" ? "default" : "success"}>{t.status}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-        {trips.length === 0 && !tripsQuery.isLoading && (
-          <TruckEmpty
-            variant="container"
-            title="No trips here yet"
-            hint="Book your first trip and it'll show up in this list."
-          />
-        )}
+                    <p className="truncate text-sm text-muted-foreground">
+                      {t.fromCity} → {t.toCity} · {t.partyName}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {/* The whole invoice, not the freight — a trip carrying
+                        extras is worth more than weight × rate, and showing the
+                        smaller figure beside a larger balance reads as an error. */}
+                    <p className="font-semibold">{formatCurrency(t.grandTotal)}</p>
+                    {t.totalExtras > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        incl. {formatCurrency(t.totalExtras)} extras
+                        {t.gstAmount > 0 ? ` + ${formatCurrency(t.gstAmount)} GST` : ""}
+                      </p>
+                    )}
+                    <Badge variant={t.status === "Open" ? "default" : "success"}>{t.status}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          ))}
+          {trips.length === 0 && !tripsQuery.isLoading && (
+            <TruckEmpty
+              variant="container"
+              title="No trips here yet"
+              hint="Book your first trip and it'll show up in this list."
+            />
+          )}
 
-        {/* A full-width button rather than a numbered pager: on a phone this
-            sits under the thumb, needs no aiming, and never competes with the
-            bottom tab bar for the same corner of the screen. The count above
-            it answers the question a pager would have — how much is left. */}
-        {trips.length > 0 && (
-          <div className="flex flex-col items-center gap-2 pt-2">
-            <p className="text-xs text-muted-foreground" aria-live="polite">
-              Showing {trips.length} of {total} {total === 1 ? "trip" : "trips"}
-            </p>
-            {tripsQuery.hasNextPage && (
-              <Button
-                variant="outline"
-                className="h-11 w-full sm:w-auto sm:min-w-56"
-                onClick={() => tripsQuery.fetchNextPage()}
-                disabled={tripsQuery.isFetchingNextPage}
-              >
-                {tripsQuery.isFetchingNextPage ? "Loading…" : "Load more trips"}
-              </Button>
-            )}
-          </div>
-        )}
-      </div>
-    </PageContainer>
+          {/* A full-width button rather than a numbered pager: on a phone this
+              sits under the thumb, needs no aiming, and never competes with the
+              bottom tab bar for the same corner of the screen. The count above
+              it answers the question a pager would have — how much is left. */}
+          {trips.length > 0 && (
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <p className="text-xs text-muted-foreground" aria-live="polite">
+                Showing {trips.length} of {total} {total === 1 ? "trip" : "trips"}
+              </p>
+              {tripsQuery.hasNextPage && (
+                <Button
+                  variant="outline"
+                  className="h-11 w-full sm:w-auto sm:min-w-56"
+                  onClick={() => tripsQuery.fetchNextPage()}
+                  disabled={tripsQuery.isFetchingNextPage}
+                >
+                  {tripsQuery.isFetchingNextPage ? "Loading…" : "Load more trips"}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </PageContainer>
+    </>
   );
 }

@@ -77,7 +77,8 @@ public record PartyTripRow(
     decimal WaymentCharge = 0,
     decimal LoadingCharge = 0,
     decimal UnloadingCharge = 0,
-    decimal GstAmount = 0)
+    decimal GstAmount = 0,
+    decimal? GstPercentage = null)
 {
     public decimal TotalExtras => WaymentCharge + LoadingCharge + UnloadingCharge;
 
@@ -114,6 +115,36 @@ public record PartyReport(
     /// a block of zeroes.</summary>
     public bool HasExtras => TotalExtras > 0;
     public bool HasGst => TotalGst > 0;
+
+    // Each addition gets its own column on the bill, and only when something
+    // in the period actually used it — a party that never pays loading should
+    // not be handed a column of dashes.
+    public bool HasWayment => TotalWayment > 0;
+    public bool HasLoading => TotalLoading > 0;
+    public bool HasUnloading => TotalUnloading > 0;
+
+    /// <summary>The single GST rate this bill was charged at, or null when the
+    /// period spans trips booked at different rates.
+    ///
+    /// Tax is charged on the bill's total rather than shown against each trip,
+    /// so the footer needs one rate to name. Rates are snapshotted per trip and
+    /// can genuinely differ across a month if the party's rate changed mid-way,
+    /// and in that case naming any one of them would be a lie — the line says
+    /// plain "GST" instead.</summary>
+    public decimal? GstRate
+    {
+        get
+        {
+            var rates = Rows.Where(r => r.GstAmount > 0 && r.GstPercentage is > 0)
+                            .Select(r => r.GstPercentage!.Value)
+                            .Distinct()
+                            .ToList();
+            return rates.Count == 1 ? rates[0] : null;
+        }
+    }
+
+    /// <summary>"GST @ 5%" when the whole bill shares a rate, otherwise "GST".</summary>
+    public string GstLabel => GstRate is { } rate ? $"GST @ {rate:0.##}%" : "GST";
 }
 
 /// <summary>One vehicle's figures for one calendar month: what its trips
