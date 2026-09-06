@@ -148,8 +148,13 @@ export default function DashboardPage() {
             party can pay an advance larger than the freight, which leaves it
             negative. Rendering that as "Still to collect -₹5,000" reads as a
             bug, so each case gets its own wording. */}
+        {/* py-0 for the same reason as the tiles below: Card adds 16px top and
+            bottom of its own on top of CardContent's padding. Keeps p-4 inside
+            though — this is the headline figure and deserves more room around
+            it than a tile does. The 4xl figure also carries default leading,
+            which on one line is pure empty space above and below it. */}
         <Link href="/trips" className="block">
-          <Card className="transition active:scale-[0.99]">
+          <Card className="py-0 transition active:scale-[0.99]">
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -158,7 +163,7 @@ export default function DashboardPage() {
                       <p className="text-sm text-muted-foreground">{balanceLabel(s.outstandingBalance)}</p>
                       <p
                         className={cn(
-                          "mt-1 text-4xl font-semibold tracking-tight tabular-nums",
+                          "mt-0.5 text-4xl font-semibold leading-tight tracking-tight tabular-nums",
                           s.outstandingBalance === 0 && "text-success",
                         )}
                       >
@@ -166,16 +171,18 @@ export default function DashboardPage() {
                           ? "All settled"
                           : formatCurrency(Math.abs(s.outstandingBalance))}
                       </p>
-                      <p className="mt-1 text-xs text-muted-foreground">{balanceHint(s.outstandingBalance)}</p>
+                      <p className="mt-0.5 text-xs leading-tight text-muted-foreground">
+                        {balanceHint(s.outstandingBalance)}
+                      </p>
                     </>
                   ) : (
                     <>
                       <p className="text-sm text-muted-foreground">Still to collect</p>
-                      <Skeleton className="mt-2 h-10 w-40" />
+                      <Skeleton className="mt-1 h-9 w-40" />
                     </>
                   )}
                 </div>
-                <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                <ChevronRight className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground" />
               </div>
             </CardContent>
           </Card>
@@ -184,7 +191,7 @@ export default function DashboardPage() {
         {/* The month's books: what came in, then everything that went out,
             then what was left. Ordered so the eye can run down the costs and
             land on the profit — the figure the whole screen exists for. */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <MoneyTile
             label="Trip earnings"
             value={s ? formatCurrency(s.tripEarnings) : null}
@@ -352,35 +359,42 @@ function MoneyTile({
 }) {
   return (
     <Link href={href} className="block">
-      <Card className="h-full transition active:scale-[0.99]">
-        {/* Tight padding on purpose: the type sizes are right, so the height
-            these tiles wasted was all padding and leading. Six of them have to
-            fit a phone screen without scrolling past the profit figure. */}
+      {/* py-0 is doing the real work here. Card carries its own
+          py-(--card-spacing) — 16px top and bottom — on top of whatever
+          padding CardContent sets, so a tile was spending 56px of its height
+          on chrome before a single character was drawn. Zeroing the Card's
+          own padding and letting CardContent own all of it puts the tile at
+          12px all round.
+
+          Every type size below is deliberately untouched: the figures are
+          meant to be read across a room, and it was never the text making
+          these tall. */}
+      <Card className="h-full py-0 transition active:scale-[0.99]">
         <CardContent className="p-3">
           <div className="flex items-center gap-1.5">
             <Icon
               className={cn(
-                "h-4 w-4",
+                "h-3.5 w-3.5 shrink-0",
                 tone === "positive" && "text-success",
                 tone === "negative" && "text-destructive",
                 tone === "neutral" && "text-muted-foreground",
               )}
             />
-            <p className="text-xs text-muted-foreground">{label}</p>
+            <p className="truncate text-xs text-muted-foreground">{label}</p>
           </div>
           {value === null ? (
             <Skeleton className="mt-1 h-6 w-20" />
           ) : (
             <p
               className={cn(
-                "mt-0.5 text-xl font-semibold leading-tight tracking-tight tabular-nums",
+                "text-xl font-semibold leading-tight tracking-tight tabular-nums",
                 tone === "negative" && "text-destructive",
               )}
             >
               {value}
             </p>
           )}
-          {note && <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{note}</p>}
+          {note && <p className="text-[11px] leading-tight text-muted-foreground">{note}</p>}
         </CardContent>
       </Card>
     </Link>
