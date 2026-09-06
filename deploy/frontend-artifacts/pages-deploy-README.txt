@@ -50,3 +50,32 @@ root, plus .deploy-dryrun/worker.js renamed to _worker.js at that same
 root. Re-upload as a new deployment on the same Pages project (Settings ->
 Deployments -> Create deployment / drag the new zip in) — no need to
 redo the Custom domain or Compatibility flag steps, those stick.
+
+Check the API URL before you upload  (added 2026-09-06)
+---------------------------------------------------------
+`.env.production` in web/transtrack-web pins NEXT_PUBLIC_API_URL to
+https://loapi.lorryowner.com, and it is committed so a clean checkout builds
+correctly with no dashboard config.
+
+But a dev machine usually also has an untracked `.env.local` holding
+http://localhost:5034 — and Next loads `.env.local` at HIGHER precedence than
+`.env.production`. Building on such a machine silently bakes localhost into
+the client bundle, and the deployed site then calls localhost from the
+visitor's browser and fails with no error at build time.
+
+So build with the value forced through the process environment, which outranks
+every .env file:
+
+   $env:NEXT_PUBLIC_API_URL = "https://loapi.lorryowner.com"
+   npx opennextjs-cloudflare build
+   npx wrangler deploy --dry-run --outdir=.deploy-dryrun
+
+Then verify before zipping — one line, and it has caught this once already:
+
+   Select-String -Path .open-next\assets\_next\static\chunks\*.js `
+       -Pattern "localhost:5034" -SimpleMatch
+
+That must find NOTHING. Searching for "loapi.lorryowner.com" in the same place
+must find exactly one hit. (localhost:5034 does legitimately appear in
+_worker.js — it is in the CSP connect-src allowlist, which permits both hosts
+on purpose. Only the client chunks matter for this check.)
