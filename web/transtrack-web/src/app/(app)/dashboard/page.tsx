@@ -353,7 +353,10 @@ function MoneyTile({
   return (
     <Link href={href} className="block">
       <Card className="h-full transition active:scale-[0.99]">
-        <CardContent className="p-4">
+        {/* Tight padding on purpose: the type sizes are right, so the height
+            these tiles wasted was all padding and leading. Six of them have to
+            fit a phone screen without scrolling past the profit figure. */}
+        <CardContent className="p-3">
           <div className="flex items-center gap-1.5">
             <Icon
               className={cn(
@@ -366,11 +369,11 @@ function MoneyTile({
             <p className="text-xs text-muted-foreground">{label}</p>
           </div>
           {value === null ? (
-            <Skeleton className="mt-2 h-7 w-20" />
+            <Skeleton className="mt-1 h-6 w-20" />
           ) : (
             <p
               className={cn(
-                "mt-1.5 text-xl font-semibold tracking-tight tabular-nums",
+                "mt-0.5 text-xl font-semibold leading-tight tracking-tight tabular-nums",
                 tone === "negative" && "text-destructive",
               )}
             >

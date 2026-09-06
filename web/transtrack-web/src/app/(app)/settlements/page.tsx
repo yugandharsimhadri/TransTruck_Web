@@ -13,7 +13,7 @@ import { PageContainer } from "@/components/shell/page-container";
 import { PageHeader } from "@/components/shell/page-header";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api, ApiError } from "@/lib/api";
-import { formatCurrency, formatDate, today } from "@/lib/format";
+import { formatCurrency, formatDate, toDateInput, today } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Party, PaymentMode, SettleableTrip } from "@/lib/types";
 import { Banknote, Landmark, Smartphone, FileText, Check } from "lucide-react";
@@ -48,14 +48,27 @@ export default function SettlementsPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
 
+  // Which trips to show. Opens on the calendar month just gone, which is what
+  // a month-end payment covers; both ends can be cleared for everything owed.
+  const [from, setFrom] = useState(firstOfLastMonth());
+  const [to, setTo] = useState(today());
+
   const partiesQuery = useQuery({
     queryKey: ["parties"],
     queryFn: () => api.get<Party[]>("/api/masters/parties"),
   });
 
+  // The period is part of the question, not a refinement of it: a settlement is
+  // almost always "the month they have just paid for", and without a range the
+  // list is a year of trips to hunt through.
   const tripsQuery = useQuery({
-    queryKey: ["settleable", partyId],
-    queryFn: () => api.get<SettleableTrip[]>(`/api/settlements/settleable?partyId=${partyId}`),
+    queryKey: ["settleable", partyId, from, to],
+    queryFn: () => {
+      const params = new URLSearchParams({ partyId });
+      if (from) params.set("from", from);
+      if (to) params.set("to", to);
+      return api.get<SettleableTrip[]>(`/api/settlements/settleable?${params}`);
+    },
     enabled: Boolean(partyId),
   });
 
@@ -71,6 +84,14 @@ export default function SettlementsPage() {
       else next.add(tripId);
       return next;
     });
+
+  // A tick on a trip the period no longer shows would be settled invisibly, so
+  // moving either end clears the selection the same way changing party does.
+  const setPeriod = (next: string, which: "from" | "to") => {
+    if (which === "from") setFrom(next);
+    else setTo(next);
+    setSelected(new Set());
+  };
 
   const pickParty = (id: string) => {
     setPartyId(id);
@@ -123,6 +144,19 @@ export default function SettlementsPage() {
                   sublabel: p.phone ?? undefined,
                 }))}
               />
+            </div>
+
+            {/* Which trips the payment covers, not when it arrived — the two
+                are different dates and get their own fields. */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="tripsFrom" className="text-xs">Trips from</Label>
+                <Input id="tripsFrom" type="date" value={from} onChange={(e) => setPeriod(e.target.value, "from")} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="tripsTo" className="text-xs">Trips to</Label>
+                <Input id="tripsTo" type="date" value={to} onChange={(e) => setPeriod(e.target.value, "to")} />
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -299,4 +333,11 @@ export default function SettlementsPage() {
       </Dialog>
     </>
   );
+}
+
+/** The first of last month — a month-end payment almost always covers the
+ *  month that has just finished, so that is the range the screen opens on. */
+function firstOfLastMonth() {
+  const now = new Date();
+  return toDateInput(new Date(now.getFullYear(), now.getMonth() - 1, 1));
 }

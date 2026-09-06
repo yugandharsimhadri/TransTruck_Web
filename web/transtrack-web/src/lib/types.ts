@@ -17,6 +17,9 @@ export type ExpenseRecurrence = "None" | "Monthly" | "Quarterly" | "Yearly";
 export interface State {
   id: string;
   name: string;
+  /** Retired places stay in the database — trips name them — but leave the
+   *  pickers. See ShowInactiveToggle. */
+  isActive: boolean;
 }
 
 export interface City {
@@ -25,6 +28,7 @@ export interface City {
   stateId: string;
   state?: State;
   display: string;
+  isActive: boolean;
 }
 
 export interface Owner {

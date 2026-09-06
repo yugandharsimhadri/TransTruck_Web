@@ -13,19 +13,23 @@ import { api, ApiError } from "@/lib/api";
 import { DocumentPanel } from "@/components/masters/document-panel";
 import { DRIVER_DOCUMENT_TYPES, type Driver } from "@/lib/types";
 import { Plus, Pencil } from "lucide-react";
+import { ShowInactiveToggle } from "@/components/masters/show-inactive-toggle";
 
 export function DriversTab() {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState<Driver | "new" | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
 
   const driversQuery = useQuery({
-    queryKey: ["drivers"],
-    queryFn: () => api.get<Driver[]>("/api/drivers"),
+    queryKey: ["drivers", showInactive ? "all" : "active"],
+    queryFn: () =>
+      api.get<Driver[]>(`/api/drivers${showInactive ? "?includeInactive=true" : ""}`),
   });
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <ShowInactiveToggle value={showInactive} onChange={setShowInactive} noun="drivers" />
         <Button size="sm" onClick={() => setEditing("new")}>
           <Plus className="h-4 w-4" /> Add driver
         </Button>
@@ -102,8 +106,8 @@ export function DriversTab() {
           // Refetch, then point the dialog at the real saved row so its
           // document upload is reachable without closing and reopening.
           const list = await queryClient.fetchQuery({
-            queryKey: ["drivers"],
-            queryFn: () => api.get<Driver[]>("/api/drivers"),
+            queryKey: ["drivers", "all"],
+            queryFn: () => api.get<Driver[]>("/api/drivers?includeInactive=true"),
           });
           const saved = list.find((d) => d.id === id);
           if (saved) setEditing(saved);
@@ -133,6 +137,7 @@ function DriverDialog({
   const [phone, setPhone] = useState(existing?.phone ?? "");
   const [salary, setSalary] = useState(existing?.salary?.toString() ?? "");
   const [joiningDate, setJoiningDate] = useState(existing?.joiningDate?.slice(0, 10) ?? "");
+  const [isActive, setIsActive] = useState(existing?.isActive ?? true);
   const [error, setError] = useState("");
 
   const [openFor, setOpenFor] = useState(driver);
@@ -142,6 +147,7 @@ function DriverDialog({
     setPhone(existing?.phone ?? "");
     setSalary(existing?.salary?.toString() ?? "");
     setJoiningDate(existing?.joiningDate?.slice(0, 10) ?? "");
+    setIsActive(existing?.isActive ?? true);
     setError("");
   }
 
@@ -153,7 +159,7 @@ function DriverDialog({
         phone,
         salary: Number(salary) || 0,
         joiningDate: joiningDate || null,
-        isActive: existing?.isActive ?? true,
+        isActive,
       }),
     onSuccess: (savedId) => {
       onSaved();
@@ -202,6 +208,23 @@ function DriverDialog({
             <Label htmlFor="joiningDate">Joining date (optional)</Label>
             <Input id="joiningDate" type="date" value={joiningDate} onChange={(e) => setJoiningDate(e.target.value)} />
           </div>
+
+          {/* A driver who has left keeps their ledger and every trip they ran,
+              so they are never deleted — this is how they stop appearing on
+              the lists you assign work from, and stop counting toward the
+              month's wage bill. */}
+          <label className="flex items-center gap-2.5 rounded-lg border p-3">
+            <input
+              type="checkbox"
+              className="h-4 w-4"
+              checked={isActive}
+              onChange={(e) => setIsActive(e.target.checked)}
+            />
+            <span className="text-sm font-medium">In service</span>
+            <span className="text-xs text-muted-foreground">
+              Turn off when they leave — their history stays
+            </span>
+          </label>
           {/* Documents hang off a saved driver, same as vehicles — shown
               while adding too, so the capability is visible up front. */}
           <DocumentPanel

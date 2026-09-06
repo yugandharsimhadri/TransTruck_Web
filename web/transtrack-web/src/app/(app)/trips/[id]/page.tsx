@@ -51,10 +51,23 @@ export default function TripDetailPage() {
     enabled: !isNew,
   });
 
-  const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/api/vehicles") });
-  const driversQuery = useQuery({ queryKey: ["drivers"], queryFn: () => api.get<Driver[]>("/api/drivers") });
+  // Everything, retired included: an old trip has to render the lorry and
+  // driver it actually ran with, even if both have since left the fleet. The
+  // pickers below narrow to what is still in service, so a retired record can
+  // be displayed but never newly chosen.
+  const vehiclesQuery = useQuery({
+    queryKey: ["vehicles", "all"],
+    queryFn: () => api.get<Vehicle[]>("/api/vehicles?includeInactive=true"),
+  });
+  const driversQuery = useQuery({
+    queryKey: ["drivers", "all"],
+    queryFn: () => api.get<Driver[]>("/api/drivers?includeInactive=true"),
+  });
   const partiesQuery = useQuery({ queryKey: ["parties"], queryFn: () => api.get<Party[]>("/api/masters/parties") });
-  const citiesQuery = useQuery({ queryKey: ["cities"], queryFn: () => api.get<City[]>("/api/masters/cities") });
+  const citiesQuery = useQuery({
+    queryKey: ["cities", "all"],
+    queryFn: () => api.get<City[]>("/api/masters/cities?includeInactive=true"),
+  });
   const statesQuery = useQuery({ queryKey: ["states"], queryFn: () => api.get<State[]>("/api/masters/states") });
 
   // Quick-add from the trip form: create the record, then select it —
@@ -120,6 +133,17 @@ export default function TripDetailPage() {
 
   const selectedVehicle = vehiclesQuery.data?.find((v) => v.id === vehicleId);
   const isOtherOwner = selectedVehicle?.ownership === "Other";
+
+  /**
+   * What a picker may offer: everything still in service, plus whatever this
+   * trip already has.
+   *
+   * Both halves are needed. Without the first you can book a load onto a lorry
+   * you sold last year; without the second, opening one of those old trips
+   * shows an empty picker and saving it silently drops the vehicle.
+   */
+  const choosable = <T extends { id: string; isActive: boolean }>(all: T[] | undefined, selectedId: string) =>
+    (all ?? []).filter((x) => x.isActive || x.id === selectedId);
 
   // The invoice as it stands, mirroring Trip's computed properties on the
   // server so the figure on screen is the one that will be saved.
@@ -310,7 +334,7 @@ export default function TripDetailPage() {
                 label="Vehicle"
                 value={vehicleId}
                 onSelect={setVehicleId}
-                options={(vehiclesQuery.data ?? []).map((v) => ({ id: v.id, label: v.display }))}
+                options={choosable(vehiclesQuery.data, vehicleId).map((v) => ({ id: v.id, label: v.display }))}
               />
             </div>
           </div>
@@ -325,7 +349,7 @@ export default function TripDetailPage() {
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  {driversQuery.data?.map((d) => <SelectItem key={d.id} value={d.id}>{d.display}</SelectItem>)}
+                  {choosable(driversQuery.data, driverId).map((d) => <SelectItem key={d.id} value={d.id}>{d.display}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -349,7 +373,7 @@ export default function TripDetailPage() {
                 label="From city"
                 value={fromCityId}
                 onSelect={setFromCityId}
-                options={(citiesQuery.data ?? []).map((c) => ({ id: c.id, label: c.display }))}
+                options={choosable(citiesQuery.data, fromCityId).map((c) => ({ id: c.id, label: c.display }))}
                 onAddNew={(text) => setQuickAddCity({ text, target: "from" })}
                 addNewLabel="Add location"
               />
@@ -360,7 +384,7 @@ export default function TripDetailPage() {
                 label="To city"
                 value={toCityId}
                 onSelect={setToCityId}
-                options={(citiesQuery.data ?? []).map((c) => ({ id: c.id, label: c.display }))}
+                options={choosable(citiesQuery.data, toCityId).map((c) => ({ id: c.id, label: c.display }))}
                 onAddNew={(text) => setQuickAddCity({ text, target: "to" })}
                 addNewLabel="Add location"
               />

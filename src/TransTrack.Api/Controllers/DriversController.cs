@@ -11,7 +11,8 @@ namespace TransTrack.Api.Controllers;
 public class DriversController(DriverService drivers, DocumentService documents) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<Driver>>> Get() => Ok(await drivers.GetDriversAsync());
+    public async Task<ActionResult<List<Driver>>> Get([FromQuery] bool includeInactive = false)
+        => Ok(await drivers.GetDriversAsync(includeInactive));
 
     [HttpPost]
     public async Task<IActionResult> Save(Driver driver)

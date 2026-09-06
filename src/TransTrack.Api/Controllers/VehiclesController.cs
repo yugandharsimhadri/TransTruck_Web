@@ -11,7 +11,8 @@ namespace TransTrack.Api.Controllers;
 public class VehiclesController(VehicleService vehicles, DocumentService documents) : ControllerBase
 {
     [HttpGet]
-    public async Task<ActionResult<List<Vehicle>>> Get() => Ok(await vehicles.GetVehiclesAsync());
+    public async Task<ActionResult<List<Vehicle>>> Get([FromQuery] bool includeInactive = false)
+        => Ok(await vehicles.GetVehiclesAsync(includeInactive));
 
     [HttpPost]
     public async Task<IActionResult> Save(Vehicle vehicle)

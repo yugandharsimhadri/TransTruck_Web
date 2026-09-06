@@ -60,9 +60,12 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
     public async Task<TripListPage> GetTripListAsync(
         TripStatus? status = null,
         string? regNo = null,
-        TripListSort sort = TripListSort.DateDesc,
+        TripListSort sort = TripListSort.DateAsc,
         int skip = 0,
-        int take = DefaultPageSize)
+        int take = DefaultPageSize,
+        Guid? partyId = null,
+        DateTime? from = null,
+        DateTime? to = null)
     {
         await using var db = await factory.CreateDbContextAsync();
 
@@ -73,6 +76,12 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
 
         if (status is { } s) query = query.Where(t => t.Status == s);
         if (!string.IsNullOrWhiteSpace(regNo)) query = query.Where(t => t.Vehicle.RegNo == regNo);
+        if (partyId is { } party) query = query.Where(t => t.PartyId == party);
+
+        // Inclusive at both ends, and compared on the date alone: a trip booked
+        // on the "to" date belongs in a range that names it.
+        if (from is { } f) query = query.Where(t => t.Date >= f.Date);
+        if (to is { } t2) query = query.Where(t => t.Date <= t2.Date);
 
         // Counted against the same filters, before paging — this is what tells
         // the user there are more trips than the page in front of them.

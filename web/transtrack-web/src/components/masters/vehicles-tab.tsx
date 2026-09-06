@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -8,6 +9,7 @@ import { api } from "@/lib/api";
 import { formatCurrency } from "@/lib/format";
 import type { Vehicle } from "@/lib/types";
 import { ChevronRight } from "lucide-react";
+import { ShowInactiveToggle } from "@/components/masters/show-inactive-toggle";
 
 /**
  * The fleet, as a list you pick from.
@@ -20,15 +22,19 @@ import { ChevronRight } from "lucide-react";
  * than of any single vehicle.
  */
 export function VehiclesTab() {
+  const [showInactive, setShowInactive] = useState(false);
+
   const vehiclesQuery = useQuery({
-    queryKey: ["vehicles"],
-    queryFn: () => api.get<Vehicle[]>("/api/vehicles"),
+    queryKey: ["vehicles", showInactive ? "all" : "active"],
+    queryFn: () =>
+      api.get<Vehicle[]>(`/api/vehicles${showInactive ? "?includeInactive=true" : ""}`),
   });
 
   const vehicles = vehiclesQuery.data ?? [];
 
   return (
     <div className="space-y-3">
+      <ShowInactiveToggle value={showInactive} onChange={setShowInactive} noun="vehicles" />
       {/* Cards on a phone, table on a wide screen. A five-column table is
           419px at its narrowest, so on a 320px screen a quarter of it sat off
           the edge behind a sideways scroll — while every other list in the app

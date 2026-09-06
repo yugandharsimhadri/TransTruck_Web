@@ -17,6 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { api, ApiError } from "@/lib/api";
 import type { City, State } from "@/lib/types";
 import { Plus, Pencil } from "lucide-react";
+import { ShowInactiveToggle } from "@/components/masters/show-inactive-toggle";
 
 const empty = "00000000-0000-0000-0000-000000000000";
 
@@ -26,11 +27,24 @@ export function CitiesStatesTab() {
   const [editingState, setEditingState] = useState<State | "new" | null>(null);
   const [editingCity, setEditingCity] = useState<City | "new" | null>(null);
 
-  const statesQuery = useQuery({ queryKey: ["states"], queryFn: () => api.get<State[]>("/api/masters/states") });
-  const citiesQuery = useQuery({ queryKey: ["cities"], queryFn: () => api.get<City[]>("/api/masters/cities") });
+  const [showInactive, setShowInactive] = useState(false);
+  const suffix = showInactive ? "?includeInactive=true" : "";
+  const scope = showInactive ? "all" : "active";
+
+  const statesQuery = useQuery({
+    queryKey: ["states", scope],
+    queryFn: () => api.get<State[]>(`/api/masters/states${suffix}`),
+  });
+  const citiesQuery = useQuery({
+    queryKey: ["cities", scope],
+    queryFn: () => api.get<City[]>(`/api/masters/cities${suffix}`),
+  });
 
   return (
-    <div className="grid gap-6 sm:grid-cols-2">
+    <div className="space-y-3">
+      <ShowInactiveToggle value={showInactive} onChange={setShowInactive} noun="places" />
+
+      <div className="grid gap-6 sm:grid-cols-2">
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-semibold">States</h3>
@@ -102,6 +116,7 @@ export function CitiesStatesTab() {
         onClose={() => setEditingCity(null)}
         onSaved={() => queryClient.invalidateQueries({ queryKey: ["cities"] })}
       />
+      </div>
     </div>
   );
 }
@@ -119,6 +134,7 @@ function StateDialog({
   const existing = isNew ? null : state;
 
   const [name, setName] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -129,12 +145,13 @@ function StateDialog({
   if (openFor !== state) {
     setOpenFor(state);
     setName(existing?.name ?? "");
+    setIsActive(existing?.isActive ?? true);
     setError("");
     setConfirmingDelete(false);
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => api.post("/api/masters/states", { id: existing?.id ?? empty, name }),
+    mutationFn: () => api.post("/api/masters/states", { id: existing?.id ?? empty, name, isActive }),
     onSuccess: () => {
       toast.success(isNew ? "State added." : "State saved.");
       onSaved();
@@ -167,6 +184,7 @@ function StateDialog({
             <Label htmlFor="stateName">Name</Label>
             <Input id="stateName" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
           </div>
+          <InUseSwitch value={isActive} onChange={setIsActive} />
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter className="flex-col gap-2">
             <Button type="submit" disabled={saveMutation.isPending} className="w-full">
@@ -205,6 +223,7 @@ function CityDialog({
 
   const [name, setName] = useState("");
   const [stateId, setStateId] = useState("");
+  const [isActive, setIsActive] = useState(true);
   const [error, setError] = useState("");
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -213,12 +232,13 @@ function CityDialog({
     setOpenFor(city);
     setName(existing?.name ?? "");
     setStateId(existing?.stateId ?? "");
+    setIsActive(existing?.isActive ?? true);
     setError("");
     setConfirmingDelete(false);
   }
 
   const saveMutation = useMutation({
-    mutationFn: () => api.post("/api/masters/cities", { id: existing?.id ?? empty, name, stateId }),
+    mutationFn: () => api.post("/api/masters/cities", { id: existing?.id ?? empty, name, stateId, isActive }),
     onSuccess: () => {
       toast.success(isNew ? "City added." : "City saved.");
       onSaved();
@@ -261,6 +281,7 @@ function CityDialog({
               </SelectContent>
             </Select>
           </div>
+          <InUseSwitch value={isActive} onChange={setIsActive} />
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter className="flex-col gap-2">
             <Button type="submit" disabled={saveMutation.isPending || !stateId} className="w-full">
@@ -322,5 +343,17 @@ function DeleteAction({
         </Button>
       </div>
     </div>
+  );
+}
+
+/** Retiring a place. It cannot be deleted once trips name it, so this is how a
+ *  route the company no longer runs leaves the pickers. */
+function InUseSwitch({ value, onChange }: { value: boolean; onChange: (next: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-2.5 rounded-lg border p-3">
+      <input type="checkbox" className="h-4 w-4" checked={value} onChange={(e) => onChange(e.target.checked)} />
+      <span className="text-sm font-medium">In use</span>
+      <span className="text-xs text-muted-foreground">Turn off to hide it from route pickers</span>
+    </label>
   );
 }

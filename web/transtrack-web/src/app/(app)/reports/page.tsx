@@ -70,8 +70,14 @@ export default function ReportsPage() {
   const [to, setTo] = useState("");
   const [ownership, setOwnership] = useState<VehicleOwnership | "">("");
 
-  const vehiclesQuery = useQuery({ queryKey: ["vehicles"], queryFn: () => api.get<Vehicle[]>("/api/vehicles") });
-  const driversQuery = useQuery({ queryKey: ["drivers"], queryFn: () => api.get<Driver[]>("/api/drivers") });
+  const vehiclesQuery = useQuery({
+    queryKey: ["vehicles", "all"],
+    queryFn: () => api.get<Vehicle[]>("/api/vehicles?includeInactive=true"),
+  });
+  const driversQuery = useQuery({
+    queryKey: ["drivers", "all"],
+    queryFn: () => api.get<Driver[]>("/api/drivers?includeInactive=true"),
+  });
   const partiesQuery = useQuery({ queryKey: ["parties"], queryFn: () => api.get<Party[]>("/api/masters/parties") });
 
   const params = new URLSearchParams();

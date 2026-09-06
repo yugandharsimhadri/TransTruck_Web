@@ -5,10 +5,16 @@ namespace TransTrack.Data;
 
 public class DriverService(IDbContextFactory<AppDbContext> factory)
 {
-    public async Task<List<Driver>> GetDriversAsync()
+    /// <summary>Active drivers by default. A retired driver stays in the
+    /// database — their ledger and every trip they ran still refer to them —
+    /// but they are not someone you assign new work to, so they are off the
+    /// list unless it is asked for them explicitly.</summary>
+    public async Task<List<Driver>> GetDriversAsync(bool includeInactive = false)
     {
         await using var db = await factory.CreateDbContextAsync();
-        return await db.Drivers.AsNoTracking().Where(d => !d.IsDeleted).OrderBy(d => d.Name).ToListAsync();
+        var query = db.Drivers.AsNoTracking().Where(d => !d.IsDeleted);
+        if (!includeInactive) query = query.Where(d => d.IsActive);
+        return await query.OrderBy(d => d.Name).ToListAsync();
     }
 
     /// <summary>Returns the saved driver id — the caller needs it for a newly

@@ -49,6 +49,12 @@ public class State : BaseEntity, INamedEntity, ITenantEntity
 {
     public Guid CompanyId { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>Retiring a place rather than deleting it. A city named on years
+    /// of trip sheets cannot be removed without orphaning them, but a route the
+    /// company no longer runs should stop cluttering the picker.</summary>
+    public bool IsActive { get; set; } = true;
+
     public ICollection<City> Cities { get; set; } = [];
 }
 
@@ -59,6 +65,9 @@ public class City : BaseEntity, ITenantEntity
 
     public Guid StateId { get; set; }
     public State State { get; set; } = null!;
+
+    /// <summary>See <see cref="State.IsActive"/> — same reasoning.</summary>
+    public bool IsActive { get; set; } = true;
 
     public string Display => State is null ? Name : $"{Name}, {State.Name}";
 }

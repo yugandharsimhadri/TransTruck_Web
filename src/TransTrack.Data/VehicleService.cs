@@ -5,11 +5,16 @@ namespace TransTrack.Data;
 
 public class VehicleService(IDbContextFactory<AppDbContext> factory)
 {
-    public async Task<List<Vehicle>> GetVehiclesAsync()
+    /// <summary>Vehicles in service by default. A sold or retired lorry keeps
+    /// its trips, maintenance and papers, so it is never deleted — but it is
+    /// not something to book new work against, so it leaves the list unless
+    /// asked for.</summary>
+    public async Task<List<Vehicle>> GetVehiclesAsync(bool includeInactive = false)
     {
         await using var db = await factory.CreateDbContextAsync();
-        return await db.Vehicles.AsNoTracking().Include(v => v.Owner)
-            .Where(v => !v.IsDeleted).OrderBy(v => v.RegNo).ToListAsync();
+        var query = db.Vehicles.AsNoTracking().Include(v => v.Owner).Where(v => !v.IsDeleted);
+        if (!includeInactive) query = query.Where(v => v.IsActive);
+        return await query.OrderBy(v => v.RegNo).ToListAsync();
     }
 
     /// <summary>Returns the saved vehicle's id — the caller needs it for a

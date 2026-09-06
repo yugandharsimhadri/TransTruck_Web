@@ -54,9 +54,11 @@ export default function VehicleDetailPage() {
 
   // The list is the only endpoint that returns vehicles, and it is almost
   // always already cached from the screen that linked here.
+  // Includes retired lorries on purpose: this screen is the only way back to
+  // one, and "not found" would make retiring a vehicle irreversible.
   const vehiclesQuery = useQuery({
-    queryKey: ["vehicles"],
-    queryFn: () => api.get<Vehicle[]>("/api/vehicles"),
+    queryKey: ["vehicles", "all"],
+    queryFn: () => api.get<Vehicle[]>("/api/vehicles?includeInactive=true"),
   });
 
   const existing = isNew ? null : vehiclesQuery.data?.find((v) => v.id === id) ?? null;

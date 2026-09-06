@@ -18,10 +18,13 @@ public class TripsController(TripService trips, MasterDataService masters, ICurr
     public async Task<ActionResult<TripListPage>> Get(
         [FromQuery] TripStatus? status,
         [FromQuery] string? regNo,
-        [FromQuery] TripListSort sort = TripListSort.DateDesc,
+        [FromQuery] TripListSort sort = TripListSort.DateAsc,
         [FromQuery] int skip = 0,
-        [FromQuery] int take = TripService.DefaultPageSize)
-        => Ok(await trips.GetTripListAsync(status, regNo, sort, skip, take));
+        [FromQuery] int take = TripService.DefaultPageSize,
+        [FromQuery] Guid? partyId = null,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+        => Ok(await trips.GetTripListAsync(status, regNo, sort, skip, take, partyId, from, to));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<Trip>> GetById(Guid id)

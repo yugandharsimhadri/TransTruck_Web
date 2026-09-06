@@ -12,10 +12,13 @@ public class MasterDataService(IDbContextFactory<AppDbContext> factory, ICurrent
 {
     // ── States ────────────────────────────────────────────────────────────
 
-    public async Task<List<State>> GetStatesAsync()
+    /// <summary>Places still in use, by default — see <see cref="State.IsActive"/>.</summary>
+    public async Task<List<State>> GetStatesAsync(bool includeInactive = false)
     {
         await using var db = await factory.CreateDbContextAsync();
-        return await db.States.AsNoTracking().Where(s => !s.IsDeleted).OrderBy(s => s.Name).ToListAsync();
+        var query = db.States.AsNoTracking().Where(s => !s.IsDeleted);
+        if (!includeInactive) query = query.Where(s => s.IsActive);
+        return await query.OrderBy(s => s.Name).ToListAsync();
     }
 
     public async Task<Guid> SaveStateAsync(State state)
@@ -25,6 +28,7 @@ public class MasterDataService(IDbContextFactory<AppDbContext> factory, ICurrent
         var isNew = entity is null;
         entity ??= new State();
         entity.Name = state.Name.Trim();
+        entity.IsActive = state.IsActive;
         if (isNew) db.States.Add(entity);
         await db.SaveChangesAsync();
         return entity.Id;
@@ -41,11 +45,12 @@ public class MasterDataService(IDbContextFactory<AppDbContext> factory, ICurrent
 
     // ── Cities ────────────────────────────────────────────────────────────
 
-    public async Task<List<City>> GetCitiesAsync()
+    public async Task<List<City>> GetCitiesAsync(bool includeInactive = false)
     {
         await using var db = await factory.CreateDbContextAsync();
-        return await db.Cities.AsNoTracking().Include(c => c.State)
-            .Where(c => !c.IsDeleted).OrderBy(c => c.Name).ToListAsync();
+        var query = db.Cities.AsNoTracking().Include(c => c.State).Where(c => !c.IsDeleted);
+        if (!includeInactive) query = query.Where(c => c.IsActive);
+        return await query.OrderBy(c => c.Name).ToListAsync();
     }
 
     public async Task<Guid> SaveCityAsync(City city)
@@ -56,6 +61,7 @@ public class MasterDataService(IDbContextFactory<AppDbContext> factory, ICurrent
         entity ??= new City();
         entity.Name = city.Name.Trim();
         entity.StateId = city.StateId;
+        entity.IsActive = city.IsActive;
         if (isNew) db.Cities.Add(entity);
         await db.SaveChangesAsync();
         return entity.Id;

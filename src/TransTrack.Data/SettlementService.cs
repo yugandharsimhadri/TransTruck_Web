@@ -37,14 +37,23 @@ public class SettlementService(IDbContextFactory<AppDbContext> factory)
     /// come back with their approved receipts attached and the arithmetic
     /// happens in one place, <see cref="Trip.BalanceReceivable"/>.
     /// </summary>
-    public async Task<List<SettleableTrip>> GetSettleableTripsAsync(Guid partyId)
+    public async Task<List<SettleableTrip>> GetSettleableTripsAsync(
+        Guid partyId, DateTime? from = null, DateTime? to = null)
     {
         await using var db = await factory.CreateDbContextAsync();
 
-        var trips = await db.Trips.AsNoTracking()
+        var query = db.Trips.AsNoTracking()
             .Include(t => t.Vehicle)
             .Include(t => t.Transactions.Where(x => !x.IsDeleted))
-            .Where(t => t.PartyId == partyId && !t.IsDeleted && t.Status == TripStatus.Open)
+            .Where(t => t.PartyId == partyId && !t.IsDeleted && t.Status == TripStatus.Open);
+
+        // A settlement is nearly always "the month they just paid for", so the
+        // period narrows the list rather than making someone find those trips
+        // among a year of them. Inclusive at both ends.
+        if (from is { } f) query = query.Where(t => t.Date >= f.Date);
+        if (to is { } t2) query = query.Where(t => t.Date <= t2.Date);
+
+        var trips = await query
             .OrderBy(t => t.Date).ThenBy(t => t.TripNo)
             .ToListAsync();
 

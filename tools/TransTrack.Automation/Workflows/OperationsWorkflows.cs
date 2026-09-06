@@ -436,6 +436,15 @@ public sealed class BulkSettlementWorkflow() : Workflow(
                 await WorkflowContext.Visible(c.Page.GetByRole(AriaRole.Button, new() { Name = "Choose" })).ClickAsync();
                 await WorkflowContext.Visible(c.Page.GetByPlaceholder("Search party…")).FillAsync(DemoData.PartyName);
                 await WorkflowContext.Visible(c.Page.GetByRole(AriaRole.Button, new() { Name = DemoData.PartyName })).ClickAsync();
+            });
+
+        await c.StepAsync(
+            "The period narrows it to the month being paid for — cleared here, so "
+            + "everything the party still owes is on the table.",
+            async () =>
+            {
+                await WorkflowContext.Visible(c.Page.GetByLabel("Trips from")).FillAsync("");
+                await WorkflowContext.Visible(c.Page.GetByLabel("Trips to")).FillAsync("");
 
                 // "Select all" only exists when there is something to select, so
                 // its presence is the unambiguous proof the list has rows —

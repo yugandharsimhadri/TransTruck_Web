@@ -39,7 +39,10 @@ export default function DriverLedgerPage() {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const driversQuery = useQuery({ queryKey: ["drivers"], queryFn: () => api.get<Driver[]>("/api/drivers") });
+  const driversQuery = useQuery({
+    queryKey: ["drivers", "all"],
+    queryFn: () => api.get<Driver[]>("/api/drivers?includeInactive=true"),
+  });
 
   const entriesQuery = useQuery({
     queryKey: ["driver-ledger", driverId],

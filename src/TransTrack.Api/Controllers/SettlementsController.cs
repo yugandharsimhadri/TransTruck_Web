@@ -22,8 +22,11 @@ public class SettlementsController(SettlementService settlements, ICurrentUserCo
     /// <summary>What this party still owes, trip by trip — the list the
     /// settlement screen ticks through.</summary>
     [HttpGet("settleable")]
-    public async Task<ActionResult<List<SettleableTrip>>> GetSettleable([FromQuery] Guid partyId)
-        => Ok(await settlements.GetSettleableTripsAsync(partyId));
+    public async Task<ActionResult<List<SettleableTrip>>> GetSettleable(
+        [FromQuery] Guid partyId,
+        [FromQuery] DateTime? from = null,
+        [FromQuery] DateTime? to = null)
+        => Ok(await settlements.GetSettleableTripsAsync(partyId, from, to));
 
     public record CreateRequest(
         Guid PartyId,

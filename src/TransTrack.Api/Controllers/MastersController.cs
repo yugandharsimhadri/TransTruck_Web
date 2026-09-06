@@ -17,7 +17,8 @@ public class MastersController(MasterDataService masters) : ControllerBase
     // ── States ────────────────────────────────────────────────────────────
 
     [HttpGet("states")]
-    public async Task<ActionResult<List<State>>> GetStates() => Ok(await masters.GetStatesAsync());
+    public async Task<ActionResult<List<State>>> GetStates([FromQuery] bool includeInactive = false)
+        => Ok(await masters.GetStatesAsync(includeInactive));
 
     [HttpPost("states")]
     public async Task<ActionResult<Guid>> SaveState(State state) => Ok(await masters.SaveStateAsync(state));
@@ -28,7 +29,8 @@ public class MastersController(MasterDataService masters) : ControllerBase
     // ── Cities ────────────────────────────────────────────────────────────
 
     [HttpGet("cities")]
-    public async Task<ActionResult<List<City>>> GetCities() => Ok(await masters.GetCitiesAsync());
+    public async Task<ActionResult<List<City>>> GetCities([FromQuery] bool includeInactive = false)
+        => Ok(await masters.GetCitiesAsync(includeInactive));
 
     [HttpPost("cities")]
     public async Task<ActionResult<Guid>> SaveCity(City city) => Ok(await masters.SaveCityAsync(city));
