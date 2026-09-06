@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError } from "@/lib/api";
+import { today } from "@/lib/format";
 import type { PaymentMode, ReceiptType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, Banknote, Landmark, Smartphone, FileText } from "lucide-react";
@@ -37,7 +38,7 @@ export default function AddAmountPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today());
   const [amount, setAmount] = useState("");
   const [paymentMode, setPaymentMode] = useState<PaymentMode>("Cash");
   const [receiptType, setReceiptType] = useState<ReceiptType>("Payment");

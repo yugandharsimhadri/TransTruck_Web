@@ -1,11 +1,13 @@
 import {
   LayoutDashboard,
   Truck,
+  Route,
+  Users,
   CheckCircle2,
-  Database,
   Wrench,
   BookUser,
   BarChart3,
+  ReceiptText,
   History,
   Settings,
   MoreHorizontal,
@@ -24,17 +26,21 @@ export interface NavItem {
 /**
  * Navigation order, most-used first:
  *   Dashboard, Trips, Approvals, Maintenance, Driver Ledger, Reports,
- *   Vehicles & Contacts, Activity, Settings.
+ *   Party Bills, Vehicles, Drivers & Parties, Activity, Settings.
  *
  * The desktop sidebar shows all of it in that order; the mobile tab bar takes
  * the top four and puts the rest behind "More", keeping the bar at five slots
- * so it never crowds. Vehicles & Contacts sits with the other reference screens
- * than in the tab bar — it's set up once and rarely revisited, unlike
- * recording a day's maintenance.
+ * so it never crowds. Vehicles and Drivers & Parties sit behind "More" with the
+ * other reference screens rather than in the tab bar — they are set up once and
+ * rarely revisited, unlike recording a day's maintenance.
+ *
+ * Vehicles is its own destination rather than a tab inside one "masters"
+ * screen: a lorry now carries a loan, an EMI and its own running costs, so
+ * it is somewhere you go to work, not just a list you set up once.
  */
 export const primaryNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/trips", label: "Trips", icon: Truck },
+  { href: "/trips", label: "Trips", icon: Route },
   { href: "/approvals", label: "Approvals", icon: CheckCircle2, roles: ["Owner"] },
   { href: "/maintenance", label: "Maintenance", icon: Wrench },
 ];
@@ -44,7 +50,9 @@ export const primaryNavItems: NavItem[] = [
 export const moreNavItems: NavItem[] = [
   { href: "/driver-ledger", label: "Driver Ledger", icon: BookUser },
   { href: "/reports", label: "Reports", icon: BarChart3 },
-  { href: "/masters", label: "Vehicles & Contacts", icon: Database },
+  { href: "/party-bills", label: "Party Bills", icon: ReceiptText },
+  { href: "/vehicles", label: "Vehicles", icon: Truck },
+  { href: "/masters", label: "Drivers & Parties", icon: Users },
   { href: "/activity", label: "Activity", icon: History, roles: ["Owner", "CoOwner"] },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

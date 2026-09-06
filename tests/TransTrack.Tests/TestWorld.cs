@@ -40,6 +40,10 @@ public sealed class TestWorld : IAsyncDisposable
     public MaintenanceService Maintenance { get; }
     public DriverLedgerService DriverLedger { get; }
     public AuditService Audit { get; }
+    public DriverService Drivers { get; }
+    public VehicleExpenseService VehicleExpenses { get; }
+    public DashboardService Dashboard { get; }
+    public VehicleService Vehicles { get; }
 
     private TestWorld()
     {
@@ -58,6 +62,10 @@ public sealed class TestWorld : IAsyncDisposable
         Maintenance = new MaintenanceService(Factory);
         DriverLedger = new DriverLedgerService(Factory);
         Audit = new AuditService(Factory);
+        Drivers = new DriverService(Factory);
+        VehicleExpenses = new VehicleExpenseService(Factory);
+        Dashboard = new DashboardService(Factory);
+        Vehicles = new VehicleService(Factory);
     }
 
     public static async Task<TestWorld> CreateAsync()
@@ -108,6 +116,20 @@ public sealed class TestWorld : IAsyncDisposable
             CompanyId = CompanyId, EmployeeCode = "EMP00001", Name = "Suresh",
             Phone = "9777777777", Salary = 30000
         };
+
+        // The seeded driver takes EMP00001 by hand, so the counter has to be
+        // moved on to match. Without this the fixture is in a state the
+        // product can never actually produce — the next driver created
+        // through DriverService would be handed EMP00001 again and collide
+        // on the unique index, which looks like a bug in whatever test
+        // happened to create a driver first.
+        var employeeCounter = new Counter
+        {
+            CompanyId = CompanyId,
+            Name = NumberService.Employee,
+            Prefix = "EMP",
+            LastNumber = 1,
+        };
         var party = new Party { CompanyId = CompanyId, Name = "Test Party", Phone = "9666666666" };
         var expenseCategory = new ExpenseCategory { CompanyId = CompanyId, Name = "Fuel" };
         var maintenanceCategory = new MaintenanceCategory { CompanyId = CompanyId, Name = "Service" };
@@ -119,7 +141,7 @@ public sealed class TestWorld : IAsyncDisposable
         };
 
         seed.AddRange(state, fromCity, toCity, owner, vehicle, otherVehicle,
-            driver, party, expenseCategory, maintenanceCategory, user);
+            driver, employeeCounter, party, expenseCategory, maintenanceCategory, user);
         await seed.SaveChangesAsync();
 
         VehicleId = vehicle.Id;

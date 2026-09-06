@@ -24,6 +24,7 @@ import {
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { api, ApiError } from "@/lib/api";
 import { DocumentPanel } from "@/components/masters/document-panel";
+import { VehicleExpensesPanel } from "@/components/masters/vehicle-expenses-panel";
 import { VEHICLE_DOCUMENT_TYPES, type Vehicle, type VehicleOwnership } from "@/lib/types";
 import { Plus, Pencil } from "lucide-react";
 
@@ -157,6 +158,11 @@ function VehicleDialog({
   const [insuranceUpto, setInsuranceUpto] = useState(existing?.insuranceUpto?.slice(0, 10) ?? "");
   const [fitnessUpto, setFitnessUpto] = useState(existing?.fitnessUpto?.slice(0, 10) ?? "");
   const [pollutionUpto, setPollutionUpto] = useState(existing?.pollutionUpto?.slice(0, 10) ?? "");
+  const [loanAmount, setLoanAmount] = useState(existing?.loanAmount?.toString() ?? "");
+  const [loanStartDate, setLoanStartDate] = useState(existing?.loanStartDate?.slice(0, 10) ?? "");
+  const [loanEndDate, setLoanEndDate] = useState(existing?.loanEndDate?.slice(0, 10) ?? "");
+  const [emiAmount, setEmiAmount] = useState(existing?.emiAmount?.toString() ?? "");
+  const [emiDay, setEmiDay] = useState(existing?.emiDayOfMonth?.toString() ?? "");
   const [error, setError] = useState("");
 
   // Re-seed local state whenever a different vehicle (or "new") is opened.
@@ -174,6 +180,11 @@ function VehicleDialog({
     setInsuranceUpto(existing?.insuranceUpto?.slice(0, 10) ?? "");
     setFitnessUpto(existing?.fitnessUpto?.slice(0, 10) ?? "");
     setPollutionUpto(existing?.pollutionUpto?.slice(0, 10) ?? "");
+    setLoanAmount(existing?.loanAmount?.toString() ?? "");
+    setLoanStartDate(existing?.loanStartDate?.slice(0, 10) ?? "");
+    setLoanEndDate(existing?.loanEndDate?.slice(0, 10) ?? "");
+    setEmiAmount(existing?.emiAmount?.toString() ?? "");
+    setEmiDay(existing?.emiDayOfMonth?.toString() ?? "");
     setError("");
   }
 
@@ -201,6 +212,11 @@ function VehicleDialog({
         insuranceUpto: insuranceUpto || null,
         fitnessUpto: fitnessUpto || null,
         pollutionUpto: pollutionUpto || null,
+        loanAmount: loanAmount ? Number(loanAmount) : null,
+        loanStartDate: loanStartDate || null,
+        loanEndDate: loanEndDate || null,
+        emiAmount: emiAmount ? Number(emiAmount) : null,
+        emiDayOfMonth: emiDay ? Number(emiDay) : null,
         isActive: existing?.isActive ?? true,
       });
     },
@@ -307,6 +323,46 @@ function VehicleDialog({
               vehicle id, so there is nothing to attach them to until the row
               exists — but hiding the panel entirely made the feature look
               missing rather than not-yet-available. */}
+          {/* Loan and EMI. Folded away because most lorries are owned
+              outright — an always-open block of five empty boxes suggests
+              they need filling in. */}
+          <details className="space-y-2 rounded-lg border p-3" open={Boolean(loanAmount)}>
+            <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+              Loan &amp; EMI (optional)
+            </summary>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <div className="space-y-1">
+                <Label htmlFor="loanAmount" className="text-xs">Loan amount</Label>
+                <Input id="loanAmount" type="number" inputMode="decimal" value={loanAmount}
+                  onChange={(e) => setLoanAmount(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="emiAmount" className="text-xs">EMI amount</Label>
+                <Input id="emiAmount" type="number" inputMode="decimal" value={emiAmount}
+                  onChange={(e) => setEmiAmount(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="loanStartDate" className="text-xs">Loan start</Label>
+                <Input id="loanStartDate" type="date" value={loanStartDate}
+                  onChange={(e) => setLoanStartDate(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="loanEndDate" className="text-xs">Loan end</Label>
+                <Input id="loanEndDate" type="date" value={loanEndDate}
+                  onChange={(e) => setLoanEndDate(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                {/* A day rather than a date: the instalment repeats monthly,
+                    and only the day is stable across those months. */}
+                <Label htmlFor="emiDay" className="text-xs">EMI day of month</Label>
+                <Input id="emiDay" type="number" inputMode="numeric" min={1} max={31} placeholder="5"
+                  value={emiDay} onChange={(e) => setEmiDay(e.target.value)} />
+              </div>
+            </div>
+          </details>
+
+          <VehicleExpensesPanel vehicleId={existing?.id ?? null} />
+
           <DocumentPanel
             ownerPath="vehicles"
             ownerId={existing?.id ?? null}

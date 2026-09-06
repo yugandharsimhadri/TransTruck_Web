@@ -45,12 +45,35 @@ public static class BillDocument
                     AddRow(table, "Weight", trip.Weight is { } w ? $"{w:N3} MT" : "—");
                     AddRow(table, "Rate per MT", trip.Rate is { } r ? $"{r:N2}" : "—");
                     AddRow(table, "Freight Amount", $"{trip.Amount:N2}", bold: true);
+
+                    // Each extra prints on its own line, and only when it was
+                    // actually charged — most trips carry none, and a column
+                    // of zeroes on a customer's bill invites the question of
+                    // what they were meant to be.
+                    if (trip.WaymentCharge > 0) AddRow(table, "Wayment", $"{trip.WaymentCharge:N2}");
+                    if (trip.LoadingCharge > 0) AddRow(table, "Loading", $"{trip.LoadingCharge:N2}");
+                    if (trip.UnloadingCharge > 0) AddRow(table, "Unloading", $"{trip.UnloadingCharge:N2}");
+
+                    // The sub-total only earns its line when something sits
+                    // between it and the freight; without extras it would just
+                    // repeat the figure above it.
+                    if (trip.TotalExtras > 0)
+                        AddRow(table, "Total", $"{trip.TotalBeforeTax:N2}", bold: true);
+
+                    if (trip.GstAmount > 0)
+                    {
+                        AddRow(table, $"GST @ {trip.GstPercentage:0.##}%", $"{trip.GstAmount:N2}");
+                        AddRow(table, "Grand Total", $"{trip.GrandTotal:N2}", bold: true);
+                    }
+
                     AddRow(table, "Amount Received", $"{trip.TotalApprovedReceived:N2}");
                     AddRow(table, "Balance Due", $"{trip.BalanceReceivable:N2}", bold: true);
                 });
 
+                // The invoice total, not the freight — what the party is being
+                // asked to pay is the figure that belongs in words.
                 col.Item().PaddingTop(6)
-                    .Text($"Rupees in words: {NumberToWords.ToRupees(trip.Amount)}").FontSize(8.5f);
+                    .Text($"Rupees in words: {NumberToWords.ToRupees(trip.GrandTotal)}").FontSize(8.5f);
 
                 // Opt-in per company, and only when actually filled in — see
                 // Company.CanPrintBankDetails. A company that hasn't asked for

@@ -151,7 +151,16 @@ export default function TripsPage() {
                   </p>
                 </div>
                 <div className="shrink-0 text-right">
-                  <p className="font-semibold">{formatCurrency(t.amount)}</p>
+                  {/* The whole invoice, not the freight — a trip carrying
+                      extras is worth more than weight × rate, and showing the
+                      smaller figure beside a larger balance reads as an error. */}
+                  <p className="font-semibold">{formatCurrency(t.grandTotal)}</p>
+                  {t.totalExtras > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      incl. {formatCurrency(t.totalExtras)} extras
+                      {t.gstAmount > 0 ? ` + ${formatCurrency(t.gstAmount)} GST` : ""}
+                    </p>
+                  )}
                   <Badge variant={t.status === "Open" ? "default" : "success"}>{t.status}</Badge>
                 </div>
               </CardContent>

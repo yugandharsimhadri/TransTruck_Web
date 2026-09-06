@@ -81,11 +81,25 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         query = sort switch
         {
             TripListSort.DateAsc => query.OrderBy(t => t.Date).ThenBy(t => t.TripNo),
-            TripListSort.AmountDesc => query.OrderByDescending(t => t.Amount).ThenByDescending(t => t.Date).ThenBy(t => t.TripNo),
+            // On the invoice total too — this sorts by the figure the list
+            // puts on each row, and that figure is now the whole bill.
+            TripListSort.AmountDesc => query
+                .OrderByDescending(t =>
+                    (t.Amount + t.WaymentCharge + t.LoadingCharge + t.UnloadingCharge)
+                        * (1 + (t.GstPercentage ?? 0m) / 100m))
+                .ThenByDescending(t => t.Date).ThenBy(t => t.TripNo),
+            // Ordered on the whole invoice, not the freight, so "most owed"
+            // means what the party actually owes. The tax is applied here as a
+            // plain multiplier rather than the rounded GstAmount, because
+            // rounding to the rupee is monotonic and so cannot change the
+            // order — and the rounded form has no SQL translation.
             TripListSort.BalanceDesc => query
-                .OrderByDescending(t => t.Amount - (t.Transactions
-                    .Where(x => !x.IsDeleted && x.ApprovalStatus == ApprovalStatus.Approved)
-                    .Sum(x => (decimal?)x.Amount) ?? 0m))
+                .OrderByDescending(t =>
+                    (t.Amount + t.WaymentCharge + t.LoadingCharge + t.UnloadingCharge)
+                        * (1 + (t.GstPercentage ?? 0m) / 100m)
+                    - (t.Transactions
+                        .Where(x => !x.IsDeleted && x.ApprovalStatus == ApprovalStatus.Approved)
+                        .Sum(x => (decimal?)x.Amount) ?? 0m))
                 .ThenByDescending(t => t.Date).ThenBy(t => t.TripNo),
             _ => query.OrderByDescending(t => t.Date).ThenBy(t => t.TripNo),
         };
@@ -103,6 +117,10 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
                 t.FromCity.Name,
                 t.ToCity.Name,
                 t.Amount,
+                t.WaymentCharge,
+                t.LoadingCharge,
+                t.UnloadingCharge,
+                t.GstPercentage,
                 t.Expenses.Where(e => !e.IsDeleted).Sum(e => (decimal?)e.Amount) ?? 0m,
                 t.Transactions.Where(x => !x.IsDeleted && x.ApprovalStatus == ApprovalStatus.Approved)
                     .Sum(x => (decimal?)x.Amount) ?? 0m,
@@ -145,6 +163,9 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         var vehicle = await db.Vehicles.FirstOrDefaultAsync(v => v.Id == trip.VehicleId)
                       ?? throw new InvalidOperationException("Vehicle not found.");
 
+        var party = await db.Parties.FirstOrDefaultAsync(p => p.Id == trip.PartyId)
+                    ?? throw new InvalidOperationException("Party not found.");
+
         var entity = trip.Id == Guid.Empty ? null : await db.Trips.FirstOrDefaultAsync(x => x.Id == trip.Id);
         var isNew = entity is null;
         entity ??= new Trip();
@@ -165,6 +186,20 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         entity.Weight = trip.Weight;
         entity.Rate = trip.Rate;
         entity.Amount = trip.Amount;
+
+        // Extras are by arrangement — most trips carry none, and a negative
+        // one would quietly reduce the bill, so they floor at zero.
+        entity.WaymentCharge = Math.Max(0m, trip.WaymentCharge);
+        entity.LoadingCharge = Math.Max(0m, trip.LoadingCharge);
+        entity.UnloadingCharge = Math.Max(0m, trip.UnloadingCharge);
+
+        // The GST rate is taken from the party and frozen onto the trip, not
+        // read back at print time. Changing a party's rate afterwards must
+        // never alter a bill that has already gone out — so this is only set
+        // while the trip is new, and an existing trip keeps whatever it was
+        // booked at.
+        if (isNew)
+            entity.GstPercentage = party.IsGstEnabled && party.GstPercentage is > 0 ? party.GstPercentage : null;
         entity.StartReading = trip.StartReading;
         entity.EndReading = trip.EndReading;
         entity.CommissionAmount = vehicle.Ownership == VehicleOwnership.Other ? trip.CommissionAmount : null;
@@ -317,9 +352,23 @@ public record TripListItem(
     string FromCity,
     string ToCity,
     decimal Amount,
+    decimal WaymentCharge,
+    decimal LoadingCharge,
+    decimal UnloadingCharge,
+    decimal? GstPercentage,
     decimal TotalExpenses,
     decimal TotalApprovedReceived,
     TripStatus Status)
 {
-    public decimal BalanceReceivable => Amount - TotalApprovedReceived;
+    // The same freight → extras → tax → owed chain the trip itself computes,
+    // so a row in the list and the trip it opens can never disagree.
+    public decimal TotalExtras => WaymentCharge + LoadingCharge + UnloadingCharge;
+    public decimal TotalBeforeTax => Amount + TotalExtras;
+    public decimal GstAmount => TripMath.Gst(TotalBeforeTax, GstPercentage);
+
+    /// <summary>The invoice total — what the list shows as the trip's value,
+    /// since the freight alone understates anything with extras on it.</summary>
+    public decimal GrandTotal => TotalBeforeTax + GstAmount;
+
+    public decimal BalanceReceivable => GrandTotal - TotalApprovedReceived;
 }

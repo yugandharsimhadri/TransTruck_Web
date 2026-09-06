@@ -46,6 +46,8 @@ public class AppDbContext : DbContext
     public DbSet<TripExpense> TripExpenses => Set<TripExpense>();
     public DbSet<TripTransaction> TripTransactions => Set<TripTransaction>();
     public DbSet<VehicleMaintenance> VehicleMaintenances => Set<VehicleMaintenance>();
+    public DbSet<VehicleExpenseSchedule> VehicleExpenseSchedules => Set<VehicleExpenseSchedule>();
+    public DbSet<VehicleExpense> VehicleExpenses => Set<VehicleExpense>();
     public DbSet<DriverLedgerEntry> DriverLedgerEntries => Set<DriverLedgerEntry>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
@@ -93,6 +95,7 @@ public class AppDbContext : DbContext
             e.HasOne(x => x.Owner).WithMany()
                 .HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Restrict);
             e.Ignore(x => x.Display);
+            e.Ignore(x => x.HasLoan);
         });
 
         b.Entity<StoredDocument>(e =>
@@ -155,6 +158,10 @@ public class AppDbContext : DbContext
             e.Ignore(x => x.TotalApprovedReceived);
             e.Ignore(x => x.TotalAdvanceReceived);
             e.Ignore(x => x.TotalPaymentReceived);
+            e.Ignore(x => x.TotalExtras);
+            e.Ignore(x => x.TotalBeforeTax);
+            e.Ignore(x => x.GstAmount);
+            e.Ignore(x => x.GrandTotal);
             e.Ignore(x => x.BalanceReceivable);
             e.Ignore(x => x.NetAfterExpenses);
             e.Ignore(x => x.IsOwnAccounting);
@@ -181,6 +188,31 @@ public class AppDbContext : DbContext
                 .HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.MaintenanceCategory).WithMany()
                 .HasForeignKey(x => x.MaintenanceCategoryId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<VehicleExpenseSchedule>(e =>
+        {
+            e.HasOne(x => x.Vehicle).WithMany()
+                .HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        b.Entity<VehicleExpense>(e =>
+        {
+            e.HasOne(x => x.Vehicle).WithMany()
+                .HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Restrict);
+
+            // Cascade from the schedule, unlike every other relationship here:
+            // a generated instalment has no meaning once the schedule that
+            // produced it is gone. Rows entered by hand carry a null
+            // ScheduleId and so survive regardless.
+            e.HasOne(x => x.Schedule).WithMany(s => s.Entries)
+                .HasForeignKey(x => x.ScheduleId).OnDelete(DeleteBehavior.Cascade);
+
+            // The dashboard's recurring-expenses figure reads a company's
+            // spend for one month, so that is the shape to index for —
+            // CompanyId leading, for the same reason as Trips and
+            // TripTransactions above.
+            e.HasIndex(x => new { x.CompanyId, x.Date });
         });
 
         b.Entity<DriverLedgerEntry>(e =>

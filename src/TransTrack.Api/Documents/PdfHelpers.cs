@@ -22,6 +22,11 @@ internal static class PdfHelpers
             build(page);
         });
 
+    /// <summary>How much width the logo takes, and — mirrored as an empty
+    /// column on the right — how much is given back so the letterhead stays
+    /// centred on the page rather than on whatever the logo left over.</summary>
+    private const float LogoWidth = 140;
+
     /// <summary>The boxed company letterhead every printed document opens
     /// with. <paramref name="copyLabel"/> prints as a small tag under the
     /// title (e.g. "VEHICLE COPY") — the same role the carbon-copy book's
@@ -65,15 +70,28 @@ internal static class PdfHelpers
                 {
                     try
                     {
-                        row.ConstantItem(140).Height(75).Image(Convert.FromBase64String(company.LogoBase64!)).FitArea();
+                        row.ConstantItem(LogoWidth).Height(75).Image(Convert.FromBase64String(company.LogoBase64!)).FitArea();
                     }
                     catch
                     {
                         // A logo that fails to decode must never stop the document rendering.
-                        row.ConstantItem(140);
+                        row.ConstantItem(LogoWidth);
                     }
 
                     row.RelativeItem().Column(Details);
+
+                    // An empty column the same width as the logo, mirrored on
+                    // the right. Without it the details sit in whatever space
+                    // the logo left over, so everything "centred" — the company
+                    // name and the document title especially — is actually
+                    // centred on that remainder and reads as shifted right on
+                    // the printed form. With it the centre line is the page's
+                    // own, whether or not there is a logo at all.
+                    //
+                    // A title too long for the narrowed middle column wraps
+                    // onto a second line immediately after the logo rather
+                    // than running underneath it.
+                    row.ConstantItem(LogoWidth);
                 });
             }
             else

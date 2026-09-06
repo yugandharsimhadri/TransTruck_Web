@@ -21,7 +21,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { api, ApiError } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, today } from "@/lib/format";
 import type { Trip, Vehicle, Driver, Party, City, State } from "@/lib/types";
 import Link from "next/link";
 import { ArrowLeft, Trash2, Lock, LockOpen, Share2, FileText, Receipt, Wallet, Plus, ChevronDown } from "lucide-react";
@@ -57,14 +57,14 @@ export default function TripDetailPage() {
   const statesQuery = useQuery({ queryKey: ["states"], queryFn: () => api.get<State[]>("/api/masters/states") });
 
   // Quick-add from the trip form: create the record, then select it —
-  // reuses the same masters endpoints/validation the Vehicles & Contacts screen uses.
+  // reuses the same masters endpoints/validation the Drivers & Parties screen uses.
   const [quickAddParty, setQuickAddParty] = useState<string | null>(null);
   const [quickAddCity, setQuickAddCity] = useState<{ text: string; target: "from" | "to" } | null>(null);
 
   const trip = tripQuery.data;
 
   // Form state
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today());
   const [vehicleId, setVehicleId] = useState("");
   const [driverId, setDriverId] = useState("");
   const [partyId, setPartyId] = useState("");
@@ -76,6 +76,9 @@ export default function TripDetailPage() {
   const [weight, setWeight] = useState("");
   const [rate, setRate] = useState("");
   const [amount, setAmount] = useState("0");
+  const [wayment, setWayment] = useState("");
+  const [loading, setLoading] = useState("");
+  const [unloading, setUnloading] = useState("");
   const [startReading, setStartReading] = useState("0");
   const [commissionAmount, setCommissionAmount] = useState("");
   const [remarks, setRemarks] = useState("");
@@ -100,6 +103,9 @@ export default function TripDetailPage() {
       setWeight(trip.weight?.toString() ?? "");
       setRate(trip.rate?.toString() ?? "");
       setAmount(trip.amount.toString());
+      setWayment(trip.waymentCharge ? trip.waymentCharge.toString() : "");
+      setLoading(trip.loadingCharge ? trip.loadingCharge.toString() : "");
+      setUnloading(trip.unloadingCharge ? trip.unloadingCharge.toString() : "");
       setStartReading(trip.startReading.toString());
       setCommissionAmount(trip.commissionAmount?.toString() ?? "");
       setRemarks(trip.remarks ?? "");
@@ -113,6 +119,23 @@ export default function TripDetailPage() {
 
   const selectedVehicle = vehiclesQuery.data?.find((v) => v.id === vehicleId);
   const isOtherOwner = selectedVehicle?.ownership === "Other";
+
+  // The invoice as it stands, mirroring Trip's computed properties on the
+  // server so the figure on screen is the one that will be saved.
+  const freight = Number(amount) || 0;
+  const extrasTotal = (Number(wayment) || 0) + (Number(loading) || 0) + (Number(unloading) || 0);
+  const hasExtras = extrasTotal > 0;
+  const beforeTax = freight + extrasTotal;
+
+  // A booked trip keeps the rate it was booked at; a new one previews the
+  // party's current rate, which is what the server will snapshot on save.
+  const selectedParty = partiesQuery.data?.find((p) => p.id === partyId);
+  const gstPercent = isNew
+    ? (selectedParty?.isGstEnabled ? (selectedParty.gstPercentage ?? 0) : 0)
+    : (trip?.gstPercentage ?? 0);
+
+  const gstAmount = gstPercent > 0 ? Math.round((beforeTax * gstPercent) / 100) : 0;
+  const grandTotal = beforeTax + gstAmount;
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -130,6 +153,9 @@ export default function TripDetailPage() {
         weight: weight ? Number(weight) : null,
         rate: rate ? Number(rate) : null,
         amount: Number(amount) || 0,
+        waymentCharge: Number(wayment) || 0,
+        loadingCharge: Number(loading) || 0,
+        unloadingCharge: Number(unloading) || 0,
         startReading: Number(startReading) || 0,
         commissionAmount: isOtherOwner && commissionAmount ? Number(commissionAmount) : null,
         remarks: remarks || null,
@@ -373,6 +399,47 @@ export default function TripDetailPage() {
             </div>
           </div>
 
+          {/* Charged only by arrangement, so they stay out of the way until
+              someone opens them — most trips are plain freight and an always-on
+              row of three empty boxes reads like something was forgotten. */}
+          <details className="rounded-lg border p-3" open={hasExtras}>
+            <summary className="cursor-pointer text-sm font-medium">
+              Wayment, loading &amp; unloading
+              {hasExtras ? ` — ${formatCurrency(extrasTotal)}` : ""}
+            </summary>
+            <div className="grid grid-cols-3 gap-3 pt-3">
+              <div className="space-y-2">
+                <Label>Wayment</Label>
+                <Input type="number" inputMode="decimal" value={wayment} onChange={(e) => setWayment(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Loading</Label>
+                <Input type="number" inputMode="decimal" value={loading} onChange={(e) => setLoading(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Unloading</Label>
+                <Input type="number" inputMode="decimal" value={unloading} onChange={(e) => setUnloading(e.target.value)} />
+              </div>
+            </div>
+          </details>
+
+          {/* The bill as it stands, worked out here rather than waiting for a
+              save — entering an extra and not seeing the total move is exactly
+              when someone types it into the wrong box. GST comes from the
+              party for a new trip, and from the trip itself once booked, which
+              is what the server does too. */}
+          {(hasExtras || gstPercent > 0) && (
+            <div className="rounded-lg border bg-muted/40 p-3 text-sm">
+              <Line label="Freight" value={freight} />
+              {Number(wayment) > 0 && <Line label="Wayment" value={Number(wayment)} />}
+              {Number(loading) > 0 && <Line label="Loading" value={Number(loading)} />}
+              {Number(unloading) > 0 && <Line label="Unloading" value={Number(unloading)} />}
+              {hasExtras && <Line label="Total before tax" value={beforeTax} bold />}
+              {gstPercent > 0 && <Line label={`GST @ ${gstPercent}%`} value={gstAmount} />}
+              <Line label="Party pays" value={grandTotal} bold />
+            </div>
+          )}
+
           {isOtherOwner && (
             <div className="space-y-2">
               <Label>Commission amount</Label>
@@ -417,6 +484,20 @@ export default function TripDetailPage() {
           <Card>
             <CardHeader><CardTitle className="text-base">Summary</CardTitle></CardHeader>
             <CardContent className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              {/* Only when there is something to break down — a plain freight
+                  trip would just repeat its own amount three times. */}
+              {(trip.totalExtras > 0 || trip.gstAmount > 0) && (
+                <>
+                  <Summary label="Freight" value={formatCurrency(trip.amount)} />
+                  {trip.totalExtras > 0 && (
+                    <Summary label="Extras" value={formatCurrency(trip.totalExtras)} />
+                  )}
+                  {trip.gstAmount > 0 && (
+                    <Summary label={`GST @ ${trip.gstPercentage}%`} value={formatCurrency(trip.gstAmount)} />
+                  )}
+                  <Summary label="Invoice total" value={formatCurrency(trip.grandTotal)} />
+                </>
+              )}
               <Summary label="Total expenses" value={formatCurrency(trip.totalExpenses)} />
               <Summary label="Approved received" value={formatCurrency(trip.totalApprovedReceived)} />
               {/* The split of the figure just above — always sums back to it
@@ -570,7 +651,7 @@ export default function TripDetailPage() {
 }
 
 /** Add a party without leaving the trip form. Same POST/validation the
- *  Vehicles & Contacts screen uses — just name is required, phone optional. */
+ *  Drivers & Parties screen uses — just name is required, phone optional. */
 function QuickAddPartyDialog({
   searchText,
   onClose,
@@ -699,6 +780,17 @@ function QuickAddCityDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/// One line of the running invoice on the booking form — label left, money
+/// right, so the column of figures reads straight down.
+function Line({ label, value, bold }: { label: string; value: number; bold?: boolean }) {
+  return (
+    <div className={cn("flex items-baseline justify-between gap-3 py-0.5", bold && "font-semibold")}>
+      <span className={bold ? undefined : "text-muted-foreground"}>{label}</span>
+      <span className="tabular-nums">{formatCurrency(value)}</span>
+    </div>
   );
 }
 

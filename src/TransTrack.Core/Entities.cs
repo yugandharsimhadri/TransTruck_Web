@@ -86,6 +86,16 @@ public class Party : BaseEntity, ITenantEntity
     public string? Phone { get; set; }
     public string? Address { get; set; }
     public string? Gstin { get; set; }
+
+    /// <summary>Whether this party's bills carry GST at all. Separate from
+    /// <see cref="GstPercentage"/> having a value, so a party can be switched
+    /// off without losing the rate that was being used.</summary>
+    public bool IsGstEnabled { get; set; }
+
+    /// <summary>The rate applied to a bill, as a percentage (5 means 5%).
+    /// Copied onto a trip when it's booked rather than read at print time —
+    /// changing this later must never rewrite a bill already sent.</summary>
+    public decimal? GstPercentage { get; set; }
 }
 
 public class Driver : BaseEntity, ITenantEntity
@@ -123,6 +133,22 @@ public class Vehicle : BaseEntity, ITenantEntity
     public DateTime? InsuranceUpto { get; set; }
     public DateTime? FitnessUpto { get; set; }
     public DateTime? PollutionUpto { get; set; }
+
+    // ── Finance ──────────────────────────────────────────────────────────
+    // All nullable: plenty of lorries are owned outright, and a half-filled
+    // loan is worse than none, so nothing here is required to save a vehicle.
+    public decimal? LoanAmount { get; set; }
+    public DateTime? LoanStartDate { get; set; }
+    public DateTime? LoanEndDate { get; set; }
+    public decimal? EmiAmount { get; set; }
+
+    /// <summary>Which day of the month the EMI is taken, 1-31 — a day rather
+    /// than a full date, because the instalment repeats monthly and only the
+    /// day is stable. A month shorter than the stored day is clamped to its
+    /// last day when this is displayed.</summary>
+    public int? EmiDayOfMonth { get; set; }
+
+    public bool HasLoan => LoanAmount is > 0;
 
     public bool IsActive { get; set; } = true;
 
@@ -333,7 +359,26 @@ public class Trip : BaseEntity, ITenantEntity, IAuditable
 
     public decimal? Weight { get; set; }
     public decimal? Rate { get; set; }
+
+    /// <summary>The freight alone — weight × rate. Deliberately NOT the
+    /// invoice total: the extras and GST below sit on top of it, and
+    /// <see cref="GrandTotal"/> is what the party actually owes. Keeping this
+    /// as freight means the freight is always recoverable, and every trip
+    /// booked before extras existed still means exactly what it did.</summary>
     public decimal Amount { get; set; }
+
+    // ── Extras ───────────────────────────────────────────────────────────
+    // Charged by arrangement, not on every trip — only some parties pay them,
+    // so all three default to zero and simply don't print when unset.
+    public decimal WaymentCharge { get; set; }
+    public decimal LoadingCharge { get; set; }
+    public decimal UnloadingCharge { get; set; }
+
+    /// <summary>The GST rate this trip was booked at, copied from the party
+    /// at that moment. Null means no GST on this trip. Snapshotted rather
+    /// than read live so that changing a party's rate never alters a bill
+    /// that has already been issued.</summary>
+    public decimal? GstPercentage { get; set; }
 
     public decimal StartReading { get; set; }
     public decimal? EndReading { get; set; }
@@ -369,6 +414,24 @@ public class Trip : BaseEntity, ITenantEntity, IAuditable
 
     public decimal TotalExpenses => Expenses.Sum(e => e.Amount);
 
+    // ── Invoice maths ────────────────────────────────────────────────────
+    // Freight → extras → tax → what the party owes. Each step is its own
+    // property so a bill or report can show the breakdown without
+    // recalculating it, and so the arithmetic exists in exactly one place.
+
+    public decimal TotalExtras => WaymentCharge + LoadingCharge + UnloadingCharge;
+
+    public decimal TotalBeforeTax => Amount + TotalExtras;
+
+    /// <summary>Rounded to whole rupees, matching how every other amount in
+    /// this app is handled — a bill with paise on the tax line and none
+    /// anywhere else reads like a mistake.</summary>
+    public decimal GstAmount => TripMath.Gst(TotalBeforeTax, GstPercentage);
+
+    /// <summary>The invoice total — what the party actually owes for this
+    /// trip, extras and tax included.</summary>
+    public decimal GrandTotal => TotalBeforeTax + GstAmount;
+
     public decimal TotalApprovedReceived =>
         Transactions.Where(t => t.ApprovalStatus == ApprovalStatus.Approved).Sum(t => t.Amount);
 
@@ -383,14 +446,20 @@ public class Trip : BaseEntity, ITenantEntity, IAuditable
         .Where(t => t.ApprovalStatus == ApprovalStatus.Approved && t.ReceiptType == ReceiptType.Payment)
         .Sum(t => t.Amount);
 
-    /// <summary>What the party still owes against the billed freight amount.
-    /// Only Approved transactions count — a Pending entry does not move
+    /// <summary>What the party still owes on this trip's invoice — the grand
+    /// total, so extras and GST are included, not the freight alone. Only
+    /// Approved transactions count against it; a Pending entry does not move
     /// this until the Owner approves it.</summary>
-    public decimal BalanceReceivable => Amount - TotalApprovedReceived;
+    public decimal BalanceReceivable => GrandTotal - TotalApprovedReceived;
 
     /// <summary>The company's/owner's actual take after operating expenses
-    /// and — for an Other-owner vehicle — the commission paid out.</summary>
-    public decimal NetAfterExpenses => Amount - TotalExpenses - (CommissionAmount ?? 0m);
+    /// and — for an Other-owner vehicle — the commission paid out.
+    ///
+    /// Before tax, deliberately: GST is collected from the party on the
+    /// government's behalf and paid onward, so it is never the company's
+    /// money and must not inflate profit. The extras, by contrast, are
+    /// genuinely earned and do count.</summary>
+    public decimal NetAfterExpenses => TotalBeforeTax - TotalExpenses - (CommissionAmount ?? 0m);
 
     /// <summary>Whether this trip's expenses and amounts received are the
     /// company's own money — true for the owned fleet, false for another
@@ -398,11 +467,14 @@ public class Trip : BaseEntity, ITenantEntity, IAuditable
     /// the commission is actually the company's.</summary>
     public bool IsOwnAccounting => Vehicle is null || Vehicle.Ownership != VehicleOwnership.Other;
 
-    /// <summary>Revenue that belongs in the company's own books: the full
-    /// freight for an owned vehicle, or just the commission for another
-    /// owner's vehicle — never the freight itself, which is collected on
-    /// that owner's behalf and passed on.</summary>
-    public decimal CompanyRevenue => IsOwnAccounting ? Amount : (CommissionAmount ?? 0m);
+    /// <summary>Revenue that belongs in the company's own books: freight plus
+    /// the extras earned on it for an owned vehicle, or just the commission
+    /// for another owner's vehicle — never that owner's freight, which is
+    /// collected on their behalf and passed on.
+    ///
+    /// Excludes GST for the same reason <see cref="NetAfterExpenses"/> does:
+    /// tax collected is a liability, not income.</summary>
+    public decimal CompanyRevenue => IsOwnAccounting ? TotalBeforeTax : (CommissionAmount ?? 0m);
 
     /// <summary>This trip's expenses, but only when they're the company's
     /// own — zero for another owner's vehicle, whose running costs are that
@@ -476,6 +548,76 @@ public class VehicleMaintenance : BaseEntity, ITenantEntity, IAuditable
 
     public DateTime? NextDueDate { get; set; }
     public decimal? NextDueOdometer { get; set; }
+    public string? Remarks { get; set; }
+}
+
+/// <summary>
+/// A schedule for a vehicle's paperwork cost — insurance, road tax, or
+/// anything else that comes round on a cycle. Deliberately separate from
+/// <see cref="VehicleMaintenance"/>: maintenance is a repair that already
+/// happened and carries an odometer and a vendor, whereas this is a
+/// commitment with a start, an end, and a rhythm.
+///
+/// A one-off (Recurrence None) is just a schedule of one. That keeps a single
+/// screen and a single service handling both, rather than two near-identical
+/// shapes that drift apart.
+/// </summary>
+public class VehicleExpenseSchedule : BaseEntity, ITenantEntity, IAuditable
+{
+    public Guid CompanyId { get; set; }
+
+    public Guid VehicleId { get; set; }
+    public Vehicle Vehicle { get; set; } = null!;
+
+    public VehicleExpenseKind Kind { get; set; } = VehicleExpenseKind.Insurance;
+
+    /// <summary>Shown instead of the Kind when set — what "Other" actually
+    /// was, in the user's own words.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>The amount of a single instalment, not the total across the
+    /// schedule. A yearly premium paid once is one instalment.</summary>
+    public decimal Amount { get; set; }
+
+    public ExpenseRecurrence Recurrence { get; set; } = ExpenseRecurrence.None;
+
+    public DateTime StartDate { get; set; } = DateTime.Today;
+
+    /// <summary>When the schedule stops. Required for a recurring one — an
+    /// open-ended repeat would generate rows forever — and ignored for a
+    /// one-off, which is simply its start date.</summary>
+    public DateTime? EndDate { get; set; }
+
+    public string? Remarks { get; set; }
+
+    public ICollection<VehicleExpense> Entries { get; set; } = [];
+}
+
+/// <summary>One dated instalment generated from a
+/// <see cref="VehicleExpenseSchedule"/> — the row that actually counts as
+/// money spent in a given month.
+///
+/// Generated rather than inferred so each instalment can be seen and, where a
+/// real payment differed from the plan, corrected on its own. The link back
+/// to its schedule is what lets a schedule be revised without orphaning the
+/// history it already produced.</summary>
+public class VehicleExpense : BaseEntity, ITenantEntity, IAuditable
+{
+    public Guid CompanyId { get; set; }
+
+    public Guid VehicleId { get; set; }
+    public Vehicle Vehicle { get; set; } = null!;
+
+    /// <summary>Null for a row entered by hand rather than generated.</summary>
+    public Guid? ScheduleId { get; set; }
+    public VehicleExpenseSchedule? Schedule { get; set; }
+
+    public VehicleExpenseKind Kind { get; set; } = VehicleExpenseKind.Insurance;
+    public string? Description { get; set; }
+
+    public DateTime Date { get; set; } = DateTime.Today;
+    public decimal Amount { get; set; }
+
     public string? Remarks { get; set; }
 }
 

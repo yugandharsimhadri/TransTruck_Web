@@ -13,7 +13,11 @@ public sealed class MastersUatTests(UatFixture fixture, ITestOutputHelper output
 {
     [Theory]
     [MemberData(nameof(BothViewports))]
-    public Task The_fleet_drivers_parties_and_routes(Viewport viewport) => RunWorkflowAsync("VehiclesAndContacts", viewport);
+    public Task The_fleet_is_listed_on_its_own_screen(Viewport viewport) => RunWorkflowAsync("Vehicles", viewport);
+
+    [Theory]
+    [MemberData(nameof(BothViewports))]
+    public Task Drivers_parties_and_routes(Viewport viewport) => RunWorkflowAsync("DriversAndParties", viewport);
 }
 
 /// <summary>

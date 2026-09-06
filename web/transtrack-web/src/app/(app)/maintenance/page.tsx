@@ -18,7 +18,7 @@ import {
 import { PageContainer } from "@/components/shell/page-container";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, today } from "@/lib/format";
 import type { Vehicle, VehicleMaintenance, MaintenanceCategory } from "@/lib/types";
 import { Plus, Wrench, Trash2 } from "lucide-react";
 import { TruckEmpty } from "@/components/truck-drive";
@@ -146,7 +146,7 @@ function AddMaintenanceForm({ vehicleId, onSaved }: { vehicleId: string; onSaved
     queryFn: () => api.get<MaintenanceCategory[]>("/api/masters/maintenance-categories"),
   });
 
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today());
   const [categoryId, setCategoryId] = useState("");
   const [odometerReading, setOdometerReading] = useState("");
   const [vendorName, setVendorName] = useState("");

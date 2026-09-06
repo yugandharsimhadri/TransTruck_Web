@@ -13,11 +13,13 @@ public static class ReportExcelBuilder
         using var workbook = new XLWorkbook();
         var sheet = workbook.Worksheets.Add("Trips");
 
-        // Received/Advance/Payment sit next to Amount deliberately — all four
-        // money-received columns together, before Expenses and Balance.
+        // Freight → each extra → tax → invoice total, then what's been
+        // received against it, then costs and balance. Reads left to right as
+        // the trip's whole money story.
         string[] headers = [
             "Trip No", "Date", "Vehicle", "Driver", "Party", "From", "To", "Weight", "Rate",
-            "Amount", "Received", "Advance", "Payment", "Expenses", "Balance", "LR No", "Bill No"
+            "Freight", "Wayment", "Loading", "Unloading", "GST", "Invoice Total",
+            "Received", "Advance", "Payment", "Expenses", "Balance", "LR No", "Bill No"
         ];
         for (var i = 0; i < headers.Length; i++) sheet.Cell(1, i + 1).Value = headers[i];
         sheet.Row(1).Style.Font.Bold = true;
@@ -35,13 +37,18 @@ public static class ReportExcelBuilder
             sheet.Cell(row, 8).Value = t.Weight;
             sheet.Cell(row, 9).Value = t.Rate;
             sheet.Cell(row, 10).Value = t.Amount;
-            sheet.Cell(row, 11).Value = t.TotalApprovedReceived;
-            sheet.Cell(row, 12).Value = t.TotalAdvanceReceived;
-            sheet.Cell(row, 13).Value = t.TotalPaymentReceived;
-            sheet.Cell(row, 14).Value = t.TotalExpenses;
-            sheet.Cell(row, 15).Value = t.BalanceReceivable;
-            sheet.Cell(row, 16).Value = t.LrNo;
-            sheet.Cell(row, 17).Value = t.BillNo;
+            sheet.Cell(row, 11).Value = t.WaymentCharge;
+            sheet.Cell(row, 12).Value = t.LoadingCharge;
+            sheet.Cell(row, 13).Value = t.UnloadingCharge;
+            sheet.Cell(row, 14).Value = t.GstAmount;
+            sheet.Cell(row, 15).Value = t.GrandTotal;
+            sheet.Cell(row, 16).Value = t.TotalApprovedReceived;
+            sheet.Cell(row, 17).Value = t.TotalAdvanceReceived;
+            sheet.Cell(row, 18).Value = t.TotalPaymentReceived;
+            sheet.Cell(row, 19).Value = t.TotalExpenses;
+            sheet.Cell(row, 20).Value = t.BalanceReceivable;
+            sheet.Cell(row, 21).Value = t.LrNo;
+            sheet.Cell(row, 22).Value = t.BillNo;
             row++;
         }
 
@@ -50,11 +57,16 @@ public static class ReportExcelBuilder
         row++;
         sheet.Cell(row, 1).Value = "Total";
         sheet.Cell(row, 10).Value = trips.Sum(t => t.Amount);
-        sheet.Cell(row, 11).Value = trips.Sum(t => t.TotalApprovedReceived);
-        sheet.Cell(row, 12).Value = trips.Sum(t => t.TotalAdvanceReceived);
-        sheet.Cell(row, 13).Value = trips.Sum(t => t.TotalPaymentReceived);
-        sheet.Cell(row, 14).Value = trips.Sum(t => t.TotalExpenses);
-        sheet.Cell(row, 15).Value = trips.Sum(t => t.BalanceReceivable);
+        sheet.Cell(row, 11).Value = trips.Sum(t => t.WaymentCharge);
+        sheet.Cell(row, 12).Value = trips.Sum(t => t.LoadingCharge);
+        sheet.Cell(row, 13).Value = trips.Sum(t => t.UnloadingCharge);
+        sheet.Cell(row, 14).Value = trips.Sum(t => t.GstAmount);
+        sheet.Cell(row, 15).Value = trips.Sum(t => t.GrandTotal);
+        sheet.Cell(row, 16).Value = trips.Sum(t => t.TotalApprovedReceived);
+        sheet.Cell(row, 17).Value = trips.Sum(t => t.TotalAdvanceReceived);
+        sheet.Cell(row, 18).Value = trips.Sum(t => t.TotalPaymentReceived);
+        sheet.Cell(row, 19).Value = trips.Sum(t => t.TotalExpenses);
+        sheet.Cell(row, 20).Value = trips.Sum(t => t.BalanceReceivable);
         sheet.Row(row).Style.Font.Bold = true;
 
         sheet.Columns().AdjustToContents();
@@ -146,9 +158,15 @@ public static class ReportExcelBuilder
         // The title line the paper report carries, kept above the header row
         // so the exported sheet is self-describing once it leaves the app.
         sheet.Cell(1, 1).Value = $"{report.PartyName.ToUpperInvariant()} {report.PeriodLabel}";
-        sheet.Range(1, 1, 1, 8).Merge().Style.Font.Bold = true;
+        sheet.Range(1, 1, 1, 13).Merge().Style.Font.Bold = true;
 
-        string[] headers = ["S NO", "DATE", "VEHICLE NO", "FROM", "TO", "WEIGHT", "RATE", "AMOUNT"];
+        // Freight and the extras stay in their own columns rather than being
+        // folded into one figure — the whole point of billing them separately
+        // is that the party can see what each one was.
+        string[] headers = [
+            "S NO", "DATE", "LR NO", "VEHICLE NO", "FROM", "TO", "WEIGHT", "RATE",
+            "FREIGHT", "WAYMENT", "LOADING", "UNLOADING", "GST", "TOTAL"
+        ];
         for (var i = 0; i < headers.Length; i++) sheet.Cell(2, i + 1).Value = headers[i];
         sheet.Row(2).Style.Font.Bold = true;
 
@@ -157,17 +175,28 @@ public static class ReportExcelBuilder
         {
             sheet.Cell(row, 1).Value = r.SerialNo;
             sheet.Cell(row, 2).Value = r.Date;
-            sheet.Cell(row, 3).Value = r.VehicleRegNo;
-            sheet.Cell(row, 4).Value = r.FromCity;
-            sheet.Cell(row, 5).Value = r.ToCity;
-            sheet.Cell(row, 6).Value = r.Weight;
-            sheet.Cell(row, 7).Value = r.Rate;
-            sheet.Cell(row, 8).Value = r.Amount;
+            sheet.Cell(row, 3).Value = r.LrNo;
+            sheet.Cell(row, 4).Value = r.VehicleRegNo;
+            sheet.Cell(row, 5).Value = r.FromCity;
+            sheet.Cell(row, 6).Value = r.ToCity;
+            sheet.Cell(row, 7).Value = r.Weight;
+            sheet.Cell(row, 8).Value = r.Rate;
+            sheet.Cell(row, 9).Value = r.Amount;
+            sheet.Cell(row, 10).Value = r.WaymentCharge;
+            sheet.Cell(row, 11).Value = r.LoadingCharge;
+            sheet.Cell(row, 12).Value = r.UnloadingCharge;
+            sheet.Cell(row, 13).Value = r.GstAmount;
+            sheet.Cell(row, 14).Value = r.GrandTotal;
             row++;
         }
 
-        sheet.Cell(row, 7).Value = "TOTAL";
-        sheet.Cell(row, 8).Value = report.Total;
+        sheet.Cell(row, 8).Value = "TOTAL";
+        sheet.Cell(row, 9).Value = report.Total;
+        sheet.Cell(row, 10).Value = report.TotalWayment;
+        sheet.Cell(row, 11).Value = report.TotalLoading;
+        sheet.Cell(row, 12).Value = report.TotalUnloading;
+        sheet.Cell(row, 13).Value = report.TotalGst;
+        sheet.Cell(row, 14).Value = report.GrandTotal;
         sheet.Row(row).Style.Font.Bold = true;
 
         sheet.Columns().AdjustToContents();

@@ -13,6 +13,7 @@ public static class WorkflowCatalog
     [
         new SignInWorkflow(),
         new DashboardWorkflow(),
+        new VehiclesWorkflow(),
         new MastersWorkflow(),
         new BrowseTripsWorkflow(),
         new TripDetailWorkflow(),

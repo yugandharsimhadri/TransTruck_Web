@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate } from "@/lib/format";
-import type { DashboardSummary, ComplianceAlert } from "@/lib/types";
+import type { DashboardSummary, ComplianceAlert, MonthOption } from "@/lib/types";
 import { useAuth } from "@/contexts/auth-context";
 import { cn } from "@/lib/utils";
 import {
@@ -18,6 +19,10 @@ import {
   ChevronRight,
   Plus,
   TrendingUp,
+  Wrench,
+  Users,
+  FileText,
+  Wallet,
 } from "lucide-react";
 import { PageContainer } from "@/components/shell/page-container";
 
@@ -33,12 +38,29 @@ import { PageContainer } from "@/components/shell/page-container";
  * it only when it exists, and makes every figure a doorway to the screen
  * that acts on it.
  */
+/// A month as a stable string key, so the <select> has something to hold.
+const key = (m: MonthOption) => `${m.year}-${m.month}`;
+
 export default function DashboardPage() {
   const { user } = useAuth();
 
+  // Which month the figures below describe. Null until the options load,
+  // at which point the newest (this month) is selected.
+  const [selected, setSelected] = useState<string>("");
+
+  const monthsQuery = useQuery({
+    queryKey: ["dashboard", "months"],
+    queryFn: () => api.get<MonthOption[]>("/api/dashboard/months"),
+    staleTime: 60 * 60_000,
+  });
+
+  const months = monthsQuery.data ?? [];
+  const current = months.find((m) => key(m) === selected) ?? months[0];
+
   const summaryQuery = useQuery({
-    queryKey: ["dashboard", "summary"],
-    queryFn: () => api.get<DashboardSummary>("/api/dashboard/summary"),
+    queryKey: ["dashboard", "summary", current?.year, current?.month],
+    queryFn: () => api.get<DashboardSummary>(
+      current ? `/api/dashboard/summary?year=${current.year}&month=${current.month}` : "/api/dashboard/summary"),
   });
 
   const alertsQuery = useQuery({
@@ -50,15 +72,26 @@ export default function DashboardPage() {
   const alerts = alertsQuery.data ?? [];
   const expired = alerts.filter((a) => a.isExpired);
 
-  const thisMonth = new Date().toLocaleDateString("en-IN", { month: "long", year: "numeric" });
 
   return (
     <PageContainer className="space-y-3">
       {/* One quiet line of context. The old greeting spent the most valuable
           pixels on a phone telling users their own name. */}
-      <div className="flex items-baseline justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <h1 className="truncate text-lg font-semibold">{user?.companyName}</h1>
-        <p className="shrink-0 text-xs text-muted-foreground">{thisMonth}</p>
+
+        {/* The month every figure below is for. Six months at minimum, and
+            further back when there is more history than that. */}
+        <select
+          aria-label="Month"
+          className="h-9 shrink-0 rounded-lg border bg-card px-2 text-sm font-medium"
+          value={current ? key(current) : ""}
+          onChange={(e) => setSelected(e.target.value)}
+        >
+          {months.map((m) => (
+            <option key={key(m)} value={key(m)}>{m.label}</option>
+          ))}
+        </select>
       </div>
 
       {/* Anything that needs a decision, first — and absent entirely when
@@ -145,22 +178,56 @@ export default function DashboardPage() {
         </Card>
       </Link>
 
-      {/* This month, side by side so earned and spent can be compared at a
-          glance rather than hunted for in a grid of six. */}
+      {/* The month's books: what came in, then everything that went out,
+          then what was left. Ordered so the eye can run down the costs and
+          land on the profit — the figure the whole screen exists for. */}
       <div className="grid grid-cols-2 gap-3">
         <MoneyTile
-          label="Earned"
-          value={s ? formatCurrency(s.revenueThisMonth) : null}
+          label="Trip earnings"
+          value={s ? formatCurrency(s.tripEarnings) : null}
           icon={TrendingUp}
           tone="positive"
           href="/reports"
         />
         <MoneyTile
-          label="Spent"
-          value={s ? formatCurrency(s.expensesThisMonth) : null}
+          label="Trip expenses"
+          value={s ? formatCurrency(s.tripExpenses) : null}
           icon={Receipt}
           tone="neutral"
           href="/reports"
+        />
+        <MoneyTile
+          label="Maintenance"
+          value={s ? formatCurrency(s.maintenanceCost) : null}
+          icon={Wrench}
+          tone="neutral"
+          href="/maintenance"
+        />
+        <MoneyTile
+          label="Driver salaries"
+          value={s ? formatCurrency(s.expectedSalaries) : null}
+          icon={Users}
+          tone="neutral"
+          href="/masters"
+          // Expected, not paid: the wage bill the month owes, worked out from
+          // the drivers on the books. Says so out loud because a figure that
+          // never moves when you settle up is otherwise confusing.
+          note="Expected, whether paid or not"
+        />
+        <MoneyTile
+          label="Insurance, tax & papers"
+          value={s ? formatCurrency(s.recurringExpenses) : null}
+          icon={FileText}
+          tone="neutral"
+          href="/vehicles"
+        />
+        <MoneyTile
+          label="Net profit"
+          value={s ? formatCurrency(s.netProfit) : null}
+          icon={Wallet}
+          tone={s && s.netProfit < 0 ? "negative" : "positive"}
+          href="/reports"
+          note="Earnings less every cost above"
         />
       </div>
 
@@ -173,7 +240,7 @@ export default function DashboardPage() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">
-                {s ? `${s.tripsThisMonth} ${s.tripsThisMonth === 1 ? "trip" : "trips"} this month` : "Trips this month"}
+                {s ? `${s.trips} ${s.trips === 1 ? "trip" : "trips"} in ${current?.label ?? "this month"}` : "Trips"}
               </p>
               <p className="text-xs text-muted-foreground">Tap to see them all</p>
             </div>
@@ -245,13 +312,13 @@ function AttentionRow({
 }
 
 /** One vehicle document's alert line — days overdue when expired, days
- *  remaining when still coming up. Tapping goes to Vehicles & Contacts (Vehicles is its
- *  default tab), the only vehicle-editing screen the app has today. */
+ *  remaining when still coming up. Tapping goes to Vehicles, which is where a
+ *  lorry's papers are edited now that it has a screen of its own. */
 function AlertRow({ alert }: { alert: ComplianceAlert }) {
   const days = Math.ceil((new Date(alert.upto).getTime() - Date.now()) / 86_400_000);
 
   return (
-    <Link href="/masters" className="flex items-center justify-between gap-3 rounded-lg py-1 text-sm transition active:scale-[0.99]">
+    <Link href="/vehicles" className="flex items-center justify-between gap-3 rounded-lg py-1 text-sm transition active:scale-[0.99]">
       <span className="min-w-0 truncate">
         {alert.vehicleRegNo} · <span className="text-muted-foreground">{alert.documentName}</span>
       </span>
@@ -268,26 +335,45 @@ function MoneyTile({
   icon: Icon,
   tone,
   href,
+  note,
 }: {
   label: string;
   value: string | null;
   icon: typeof Receipt;
-  tone: "positive" | "neutral";
+  tone: "positive" | "neutral" | "negative";
   href: string;
+  /** A short line under the figure, for one that would otherwise be
+   *  misread — an expected cost, or a derived total. */
+  note?: string;
 }) {
   return (
     <Link href={href} className="block">
       <Card className="h-full transition active:scale-[0.99]">
         <CardContent className="p-4">
           <div className="flex items-center gap-1.5">
-            <Icon className={cn("h-4 w-4", tone === "positive" ? "text-success" : "text-muted-foreground")} />
+            <Icon
+              className={cn(
+                "h-4 w-4",
+                tone === "positive" && "text-success",
+                tone === "negative" && "text-destructive",
+                tone === "neutral" && "text-muted-foreground",
+              )}
+            />
             <p className="text-xs text-muted-foreground">{label}</p>
           </div>
           {value === null ? (
             <Skeleton className="mt-2 h-7 w-20" />
           ) : (
-            <p className="mt-1.5 text-xl font-semibold tracking-tight tabular-nums">{value}</p>
+            <p
+              className={cn(
+                "mt-1.5 text-xl font-semibold tracking-tight tabular-nums",
+                tone === "negative" && "text-destructive",
+              )}
+            >
+              {value}
+            </p>
           )}
+          {note && <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{note}</p>}
         </CardContent>
       </Card>
     </Link>

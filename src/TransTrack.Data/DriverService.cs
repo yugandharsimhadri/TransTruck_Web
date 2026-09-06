@@ -16,15 +16,37 @@ public class DriverService(IDbContextFactory<AppDbContext> factory)
     /// nothing to attach one to until the row exists.</summary>
     public async Task<Guid> SaveDriverAsync(Driver driver)
     {
+        var name = (driver.Name ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(name))
+            throw new InvalidOperationException("Enter the driver's name.");
+
         if (!PhoneValidator.IsValid(driver.Phone))
             throw new InvalidOperationException("That doesn't look like a valid phone number.");
 
         await using var db = await factory.CreateDbContextAsync();
+
+        // Two drivers with the same name, or the same number, inside one
+        // company is nearly always the same person entered twice — and once
+        // that happens the trip history splits across both, which no report
+        // can put back together. Scoped to the company by the global tenant
+        // filter, so another company having a driver by the same name is
+        // none of this company's business.
+        //
+        // Deleted rows are excluded deliberately: a name freed up by removing
+        // a driver should be usable again. Deactivated ones still count —
+        // they are the same person, just not driving at the moment.
+        var lowerName = name.ToLower();
+        if (await db.Drivers.AnyAsync(d => d.Id != driver.Id && !d.IsDeleted && d.Name.ToLower() == lowerName))
+            throw new InvalidOperationException($"'{name}' is already a driver here. Use a different name, or edit the existing one.");
+
+        if (await db.Drivers.AnyAsync(d => d.Id != driver.Id && !d.IsDeleted && d.Phone == driver.Phone))
+            throw new InvalidOperationException($"Another driver already has the number {driver.Phone}.");
+
         var entity = driver.Id == Guid.Empty ? null : await db.Drivers.FirstOrDefaultAsync(x => x.Id == driver.Id);
         var isNew = entity is null;
         entity ??= new Driver();
 
-        entity.Name = driver.Name.Trim();
+        entity.Name = name;
         entity.Phone = driver.Phone;
         entity.Salary = driver.Salary;
         entity.JoiningDate = driver.JoiningDate;

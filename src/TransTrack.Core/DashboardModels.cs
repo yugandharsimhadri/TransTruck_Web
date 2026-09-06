@@ -1,15 +1,36 @@
 namespace TransTrack.Core;
 
-/// <summary>The headline numbers on the Dashboard — this calendar month,
-/// plus the two things that need attention regardless of month: pending
-/// approvals and compliance dates running out.</summary>
+/// <summary>The headline numbers on the Dashboard for one chosen month, plus
+/// the three things that mean nothing month-by-month and are therefore always
+/// as-of-now: pending approvals, compliance dates running out, and what is
+/// still owed.
+///
+/// <see cref="OutstandingBalance"/> is deliberately NOT filtered by the
+/// selected month. It is every unclosed trip since the company started — the
+/// question it answers is "how much is still out there", and an answer that
+/// only counted one month would be worse than useless, because it would look
+/// like a real total while quietly hiding older debt.</summary>
 public record DashboardSummary(
-    int TripsThisMonth,
-    decimal RevenueThisMonth,
-    decimal ExpensesThisMonth,
+    int Trips,
+    decimal TripEarnings,
+    decimal TripExpenses,
+    decimal MaintenanceCost,
+    decimal ExpectedSalaries,
+    decimal RecurringExpenses,
     int PendingApprovals,
     decimal OutstandingBalance,
-    int VehiclesExpiringSoon);
+    int VehiclesExpiringSoon)
+{
+    /// <summary>What the month actually made: earnings less every cost that
+    /// belongs to it. Expected salaries count whether or not they have been
+    /// paid yet — the wage bill is owed for the month regardless.</summary>
+    public decimal NetProfit =>
+        TripEarnings - TripExpenses - MaintenanceCost - ExpectedSalaries - RecurringExpenses;
+}
+
+/// <summary>One selectable month on the dashboard, with the label already
+/// formatted — the client shouldn't have to know how a month is spelled.</summary>
+public record MonthOption(int Year, int Month, string Label);
 
 /// <summary>One month's revenue and expenses, for the trend chart.</summary>
 public record MonthlyFigure(string Label, decimal Revenue, decimal Expenses);
@@ -51,7 +72,21 @@ public record PartyTripRow(
     string ToCity,
     decimal? Weight,
     decimal? Rate,
-    decimal Amount);
+    decimal Amount,
+    string? LrNo = null,
+    decimal WaymentCharge = 0,
+    decimal LoadingCharge = 0,
+    decimal UnloadingCharge = 0,
+    decimal GstAmount = 0)
+{
+    public decimal TotalExtras => WaymentCharge + LoadingCharge + UnloadingCharge;
+
+    /// <summary>Freight plus extras, before tax.</summary>
+    public decimal TotalBeforeTax => Amount + TotalExtras;
+
+    /// <summary>What this trip contributes to the party's bill.</summary>
+    public decimal GrandTotal => TotalBeforeTax + GstAmount;
+}
 
 /// <summary>The party-wise report: the party's name and the period it covers
 /// (both printed in the title), its rows, and the one total that matters.</summary>
@@ -60,7 +95,25 @@ public record PartyReport(
     string PeriodLabel,
     IReadOnlyList<PartyTripRow> Rows)
 {
+    /// <summary>Freight only — kept as it was so the existing report's total
+    /// column still means what it always did.</summary>
     public decimal Total => Rows.Sum(r => r.Amount);
+
+    public decimal TotalWayment => Rows.Sum(r => r.WaymentCharge);
+    public decimal TotalLoading => Rows.Sum(r => r.LoadingCharge);
+    public decimal TotalUnloading => Rows.Sum(r => r.UnloadingCharge);
+    public decimal TotalExtras => Rows.Sum(r => r.TotalExtras);
+    public decimal TotalBeforeTax => Rows.Sum(r => r.TotalBeforeTax);
+    public decimal TotalGst => Rows.Sum(r => r.GstAmount);
+
+    /// <summary>What the party is actually billed for the period.</summary>
+    public decimal GrandTotal => Rows.Sum(r => r.GrandTotal);
+
+    /// <summary>Whether any trip in the period carried an extra or tax — the
+    /// bill hides those columns entirely when none did, rather than printing
+    /// a block of zeroes.</summary>
+    public bool HasExtras => TotalExtras > 0;
+    public bool HasGst => TotalGst > 0;
 }
 
 /// <summary>One vehicle's figures for one calendar month: what its trips

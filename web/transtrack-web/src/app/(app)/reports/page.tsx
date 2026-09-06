@@ -32,6 +32,35 @@ import type {
 } from "@/lib/types";
 import { FileDown, FileSpreadsheet } from "lucide-react";
 
+/// The last N calendar months, newest first, for the month filter.
+function lastMonths(count: number) {
+  const now = new Date();
+  return Array.from({ length: count }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    return {
+      year: d.getFullYear(),
+      month: d.getMonth() + 1,
+      label: d.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+    };
+  });
+}
+
+/// Which month the current from/to pair represents, or "" when the range
+/// is not exactly one whole calendar month — so hand-editing either date
+/// quietly drops the picker back to "All dates" rather than lying about it.
+function monthValue(from: string, to: string) {
+  if (!from || !to) return "";
+  const f = new Date(from);
+  const t = new Date(to);
+  if (Number.isNaN(f.getTime()) || Number.isNaN(t.getTime())) return "";
+  const isWholeMonth =
+    f.getDate() === 1 &&
+    f.getFullYear() === t.getFullYear() &&
+    f.getMonth() === t.getMonth() &&
+    t.getDate() === new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+  return isWholeMonth ? `${f.getFullYear()}-${f.getMonth() + 1}` : "";
+}
+
 export default function ReportsPage() {
   const [vehicleId, setVehicleId] = useState<string>("");
   const [driverId, setDriverId] = useState<string>("");
@@ -97,6 +126,31 @@ export default function ReportsPage() {
                 {driversQuery.data?.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
+          </div>
+          {/* Reporting is almost always "one month" — picking a month sets
+              both ends at once rather than making someone work out that the
+              31st is the last day of this one. The date boxes stay for the
+              ranges a month can't express. */}
+          <div className="space-y-1.5">
+            <Label className="text-xs">Month</Label>
+            <select
+              aria-label="Month"
+              className="h-9 w-full rounded-lg border bg-card px-2 text-sm"
+              value={monthValue(from, to)}
+              onChange={(e) => {
+                const [y, m] = e.target.value.split("-").map(Number);
+                if (!y || !m) { setFrom(""); setTo(""); return; }
+                setFrom(new Date(y, m - 1, 1).toLocaleDateString("en-CA"));
+                // Day 0 of the next month is the last day of this one, which
+                // avoids hard-coding month lengths or leap years.
+                setTo(new Date(y, m, 0).toLocaleDateString("en-CA"));
+              }}
+            >
+              <option value="">All dates</option>
+              {lastMonths(12).map((m) => (
+                <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>{m.label}</option>
+              ))}
+            </select>
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">From</Label>
@@ -271,7 +325,18 @@ function TripsReport({ qs }: { qs: string }) {
             <CardContent className="p-3 text-sm">
               <p className="font-medium">{t.tripNo} · {t.vehicle?.regNo} · {formatDate(t.date)}</p>
               <p className="text-muted-foreground">{t.fromCity?.name} → {t.toCity?.name} · {t.party?.name}</p>
-              <p className="mt-1">{formatCurrency(t.amount)} · Balance {formatCurrency(t.balanceReceivable)} · {t.status}</p>
+              <p className="mt-1">{formatCurrency(t.grandTotal)} · Balance {formatCurrency(t.balanceReceivable)} · {t.status}</p>
+              {/* Freight and each addition named separately, so the invoice
+                  total above can be checked rather than taken on trust. */}
+              {(t.totalExtras > 0 || t.gstAmount > 0) && (
+                <p className="text-xs text-muted-foreground">
+                  Freight {formatCurrency(t.amount)}
+                  {t.waymentCharge > 0 ? ` · Wayment ${formatCurrency(t.waymentCharge)}` : ""}
+                  {t.loadingCharge > 0 ? ` · Loading ${formatCurrency(t.loadingCharge)}` : ""}
+                  {t.unloadingCharge > 0 ? ` · Unloading ${formatCurrency(t.unloadingCharge)}` : ""}
+                  {t.gstAmount > 0 ? ` · GST @ ${t.gstPercentage}% ${formatCurrency(t.gstAmount)}` : ""}
+                </p>
+              )}
               {(t.totalAdvanceReceived > 0 || t.totalPaymentReceived > 0) && (
                 <p className="text-xs text-muted-foreground">
                   Advance {formatCurrency(t.totalAdvanceReceived)} · Payment {formatCurrency(t.totalPaymentReceived)}

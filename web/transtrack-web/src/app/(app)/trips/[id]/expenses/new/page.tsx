@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api, ApiError } from "@/lib/api";
+import { today } from "@/lib/format";
 import type { ExpenseCategory } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { ArrowLeft } from "lucide-react";
@@ -27,7 +28,7 @@ export default function AddExpensePage() {
     queryFn: () => api.get<ExpenseCategory[]>("/api/masters/expense-categories"),
   });
 
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today());
   const [categoryId, setCategoryId] = useState("");
   const [amount, setAmount] = useState("");
   const [remarks, setRemarks] = useState("");

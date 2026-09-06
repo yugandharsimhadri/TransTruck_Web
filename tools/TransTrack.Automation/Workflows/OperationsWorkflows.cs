@@ -3,32 +3,52 @@ using Microsoft.Playwright;
 namespace TransTrack.Automation.Workflows;
 
 /// <summary>
-/// The lorries, drivers and parties everything else refers to. Nothing can be booked until these
-/// exist, which is why it is the first thing a new customer is walked through.
+/// The fleet itself. Its own destination rather than a tab beside the people records, because a
+/// lorry carries a good deal more than a name and a number — finance terms and the recurring
+/// paperwork costs both live on it.
 /// </summary>
-public sealed class MastersWorkflow() : Workflow(
-    key: "VehiclesAndContacts",
-    displayName: "Lorries, Drivers and Parties",
-    module: "Vehicles & Contacts",
+public sealed class VehiclesWorkflow() : Workflow(
+    key: "Vehicles",
+    displayName: "The Fleet",
+    module: "Vehicles",
     targetAudience: "Fleet owners setting up",
-    businessPurpose: "Register the fleet and the people it works with once, so booking a trip is choosing from a list rather than retyping a lorry number.")
+    businessPurpose: "Keep every lorry's registration, papers, loan and running costs in one place, so what a vehicle actually costs to own is answerable.")
 {
     public override async Task RunAsync(WorkflowContext c)
     {
         await c.StepAsync(
-            "Vehicles and Contacts holds everything the rest of the product refers to.",
+            "Vehicles is its own destination, listing the fleet by registration number.",
             async () =>
             {
-                await c.NavigateAsync("Vehicles & Contacts", "Vehicles & Contacts");
+                await c.NavigateAsync("Vehicles", "Vehicles");
+                await c.ExpectVisibleAsync(DemoData.VehicleRegNo);
+            });
+    }
+}
+
+/// <summary>
+/// The people and places everything else refers to. Nothing can be booked until these exist, which
+/// is why it is the first thing a new customer is walked through.
+/// </summary>
+public sealed class MastersWorkflow() : Workflow(
+    key: "DriversAndParties",
+    displayName: "Drivers, Parties and Places",
+    module: "Drivers & Parties",
+    targetAudience: "Fleet owners setting up",
+    businessPurpose: "Register the people the fleet works with once, so booking a trip is choosing from a list rather than retyping a name.")
+{
+    public override async Task RunAsync(WorkflowContext c)
+    {
+        await c.StepAsync(
+            "Drivers and Parties holds the people the rest of the product refers to.",
+            async () =>
+            {
+                await c.NavigateAsync("Drivers & Parties", "Drivers & Parties");
                 await c.BeatAsync();
             });
 
         await c.StepAsync(
-            "The fleet is listed with its registration numbers and status.",
-            () => c.ExpectVisibleAsync(DemoData.VehicleRegNo));
-
-        await c.StepAsync(
-            "Drivers are a tab across, each with the phone number the office rings.",
+            "Drivers come first, each with the phone number the office rings.",
             async () =>
             {
                 await WorkflowContext.Visible(c.Page.GetByRole(AriaRole.Tab, new() { Name = "Drivers" })).ClickAsync();

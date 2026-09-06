@@ -24,20 +24,40 @@ public sealed class DashboardWorkflow() : Workflow(
             });
 
         await c.StepAsync(
-            "The headline is the balance still to collect across every open trip.",
+            "The headline is the balance still to collect across every open trip — "
+            + "counted from inception, not just the month on show.",
             () => c.ExpectVisibleAsync("Still to collect"));
 
         await c.StepAsync(
-            "Underneath it, what the fleet earned and what it spent this month.",
+            "Any month can be picked, with at least the last six always offered.",
             async () =>
             {
-                await c.ExpectVisibleAsync("Earned");
-                await c.ExpectVisibleAsync("Spent");
+                // By its accessible name: the picker labels itself for screen
+                // readers, and shows only the chosen month as text.
+                var months = WorkflowContext.Visible(
+                    c.Page.GetByRole(AriaRole.Combobox, new() { Name = "Month" }));
+                await WorkflowContext.Expect(months).ToBeVisibleAsync();
+                await WorkflowContext.Expect(months.GetByRole(AriaRole.Option)).ToHaveCountAsync(6);
+                await c.BeatAsync();
             });
 
         await c.StepAsync(
-            "And the month's trip count, which opens the list in one tap.",
-            () => c.ExpectVisibleAsync("Trips this month"));
+            "The month's books read top to bottom: what came in, every cost that went out, "
+            + "and the profit left over.",
+            async () =>
+            {
+                await c.ExpectVisibleAsync("Trip earnings");
+                await c.ExpectVisibleAsync("Trip expenses");
+                await c.ExpectVisibleAsync("Maintenance");
+                await c.ExpectVisibleAsync("Driver salaries");
+                await c.ExpectVisibleAsync("Insurance, tax & papers");
+                await c.ExpectVisibleAsync("Net profit");
+            });
+
+        await c.StepAsync(
+            "Salaries are what the month owes on the drivers on the books, said out loud "
+            + "so a figure that never moves when wages are settled isn't mistaken for a bug.",
+            () => c.ExpectVisibleAsync("Expected, whether paid or not"));
     }
 }
 

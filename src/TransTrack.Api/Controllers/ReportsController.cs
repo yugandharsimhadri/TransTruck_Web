@@ -120,6 +120,19 @@ public class ReportsController(ReportsService reports, MasterDataService masters
         return File(pdf, "application/pdf", $"{Slug(report.PartyName)}-report.pdf");
     }
 
+    /// <summary>The party's bill for a period — the month-end invoice, on the
+    /// same letterhead as the per-trip bill rather than the plain report
+    /// table its Excel/PDF exports produce.</summary>
+    [HttpGet("party/bill.pdf")]
+    public async Task<IActionResult> ExportPartyBill(
+        [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)
+    {
+        var report = await reports.GetPartyReportAsync(partyId, from, to);
+        var company = await masters.GetCompanyAsync();
+        var pdf = PartyBillDocument.Build(report, company);
+        return File(pdf, "application/pdf", $"{Slug(report.PartyName)}-bill.pdf");
+    }
+
     [HttpGet("party/export.xlsx")]
     public async Task<IActionResult> ExportPartyExcel(
         [FromQuery] Guid partyId, [FromQuery] DateTime? from, [FromQuery] DateTime? to)

@@ -108,6 +108,8 @@ function PartyDialog({
   const [name, setName] = useState(existing?.name ?? "");
   const [phone, setPhone] = useState(existing?.phone ?? "");
   const [gstin, setGstin] = useState(existing?.gstin ?? "");
+  const [gstEnabled, setGstEnabled] = useState(existing?.isGstEnabled ?? false);
+  const [gstPercentage, setGstPercentage] = useState(existing?.gstPercentage?.toString() ?? "");
   const [error, setError] = useState("");
 
   const [openFor, setOpenFor] = useState(party);
@@ -116,6 +118,8 @@ function PartyDialog({
     setName(existing?.name ?? "");
     setPhone(existing?.phone ?? "");
     setGstin(existing?.gstin ?? "");
+    setGstEnabled(existing?.isGstEnabled ?? false);
+    setGstPercentage(existing?.gstPercentage?.toString() ?? "");
     setError("");
   }
 
@@ -126,6 +130,10 @@ function PartyDialog({
         name,
         phone: phone || null,
         gstin: gstin || null,
+        isGstEnabled: gstEnabled,
+        // Sent as null when switched off so a stale rate can never be
+        // picked up later; the server ignores it anyway when disabled.
+        gstPercentage: gstEnabled && gstPercentage ? Number(gstPercentage) : null,
       }),
     onSuccess: () => {
       toast.success("Party saved.");
@@ -162,6 +170,41 @@ function PartyDialog({
           <div className="space-y-2">
             <Label htmlFor="gstin">GSTIN</Label>
             <Input id="gstin" value={gstin} onChange={(e) => setGstin(e.target.value)} />
+          </div>
+
+          {/* The rate is copied onto each trip as it is booked, so changing
+              it here never rewrites a bill already sent — it only affects
+              trips booked from now on. */}
+          <div className="space-y-2 rounded-lg border p-3">
+            <label className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={gstEnabled}
+                onChange={(e) => setGstEnabled(e.target.checked)}
+              />
+              <span className="text-sm font-medium">Charge GST on this party&apos;s bills</span>
+            </label>
+
+            {gstEnabled && (
+              <div className="space-y-1.5">
+                <Label htmlFor="gstPercentage">GST %</Label>
+                <Input
+                  id="gstPercentage"
+                  type="number"
+                  inputMode="decimal"
+                  step="0.01"
+                  min="0"
+                  placeholder="5"
+                  value={gstPercentage}
+                  onChange={(e) => setGstPercentage(e.target.value)}
+                  required
+                />
+                <p className="text-xs text-muted-foreground">
+                  Applied to freight plus any wayment, loading and unloading on the trip.
+                </p>
+              </div>
+            )}
           </div>
           {error && <p className="text-sm font-medium text-destructive">{error}</p>}
           <DialogFooter>

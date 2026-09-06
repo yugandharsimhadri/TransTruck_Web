@@ -86,13 +86,39 @@ public static class LrDocument
                 // summing to Freight is an LR reprinted after a Payment-type
                 // entry also exists on the same trip — rare, since a payment
                 // is normally recorded near trip close, well after the LR.
+                if (trip.WaymentCharge > 0)
+                {
+                    table.Cell().Text("Wayment").FontSize(9);
+                    table.Cell().AlignRight().Text($"{trip.WaymentCharge:N2}").FontSize(9);
+                }
+
+                if (trip.LoadingCharge > 0)
+                {
+                    table.Cell().Text("Loading").FontSize(9);
+                    table.Cell().AlignRight().Text($"{trip.LoadingCharge:N2}").FontSize(9);
+                }
+
+                if (trip.UnloadingCharge > 0)
+                {
+                    table.Cell().Text("Unloading").FontSize(9);
+                    table.Cell().AlignRight().Text($"{trip.UnloadingCharge:N2}").FontSize(9);
+                }
+
+                if (trip.GstAmount > 0)
+                {
+                    table.Cell().Text($"GST @ {trip.GstPercentage:0.##}%").FontSize(9);
+                    table.Cell().AlignRight().Text($"{trip.GstAmount:N2}").FontSize(9);
+                    table.Cell().Text("Total").FontSize(9).Bold();
+                    table.Cell().AlignRight().Text($"{trip.GrandTotal:N2}").FontSize(9).Bold();
+                }
+
                 table.Cell().Text("Advance received").FontSize(9);
                 table.Cell().AlignRight().Text($"{trip.TotalAdvanceReceived:N2}").FontSize(9);
                 table.Cell().PaddingTop(2).Text("Balance to pay").FontSize(9).Bold();
                 table.Cell().PaddingTop(2).AlignRight().Text($"{trip.BalanceReceivable:N2}").FontSize(9).Bold();
             });
 
-            col.Item().PaddingVertical(6).Text($"Rupees in words: {NumberToWords.ToRupees(trip.Amount)}").FontSize(8.5f);
+            col.Item().PaddingVertical(6).Text($"Rupees in words: {NumberToWords.ToRupees(trip.GrandTotal)}").FontSize(8.5f);
 
             if (!string.IsNullOrWhiteSpace(trip.Remarks))
                 col.Item().Element(c => PdfHelpers.LabelValue(c, "Remarks", trip.Remarks, 8));

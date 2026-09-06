@@ -51,6 +51,7 @@ builder.Services.AddSingleton<DocumentService>();
 builder.Services.AddSingleton<TripService>();
 builder.Services.AddSingleton<TripTransactionService>();
 builder.Services.AddSingleton<MaintenanceService>();
+builder.Services.AddSingleton<VehicleExpenseService>();
 builder.Services.AddSingleton<DriverLedgerService>();
 builder.Services.AddSingleton<ReportsService>();
 builder.Services.AddSingleton<DashboardService>();

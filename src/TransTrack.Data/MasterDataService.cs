@@ -149,6 +149,19 @@ public class MasterDataService(IDbContextFactory<AppDbContext> factory, ICurrent
         entity.Phone = party.Phone;
         entity.Address = party.Address;
         entity.Gstin = party.Gstin;
+
+        entity.IsGstEnabled = party.IsGstEnabled;
+
+        // A rate is only meaningful while GST is on, and only above zero —
+        // storing a stale one behind a switched-off flag is how a party
+        // silently starts being taxed again months later.
+        entity.GstPercentage = party.IsGstEnabled && party.GstPercentage is > 0
+            ? party.GstPercentage
+            : null;
+
+        if (entity.IsGstEnabled && entity.GstPercentage is null)
+            throw new InvalidOperationException("Enter the GST percentage, or turn GST off for this party.");
+
         if (isNew) db.Parties.Add(entity);
         await db.SaveChangesAsync();
         return entity.Id;

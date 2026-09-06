@@ -40,6 +40,16 @@ public class VehicleService(IDbContextFactory<AppDbContext> factory)
         entity.InsuranceUpto = vehicle.InsuranceUpto;
         entity.FitnessUpto = vehicle.FitnessUpto;
         entity.PollutionUpto = vehicle.PollutionUpto;
+
+        entity.LoanAmount = vehicle.LoanAmount;
+        entity.LoanStartDate = vehicle.LoanStartDate;
+        entity.LoanEndDate = vehicle.LoanEndDate;
+        entity.EmiAmount = vehicle.EmiAmount;
+        // Clamped rather than rejected: the day is only ever used to say when in
+        // the month the instalment falls, so an out-of-range one is worth
+        // correcting silently instead of refusing to save the whole vehicle.
+        entity.EmiDayOfMonth = vehicle.EmiDayOfMonth is { } day ? Math.Clamp(day, 1, 31) : null;
+
         entity.IsActive = vehicle.IsActive;
 
         if (isNew) db.Vehicles.Add(entity);

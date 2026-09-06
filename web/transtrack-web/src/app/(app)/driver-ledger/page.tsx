@@ -19,7 +19,7 @@ import {
 import { PageContainer } from "@/components/shell/page-container";
 import { Sheet, SheetTrigger, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { api, ApiError } from "@/lib/api";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatCurrency, formatDate, today } from "@/lib/format";
 import type { Driver, DriverLedgerEntry, DriverLedgerEntryType } from "@/lib/types";
 import { Plus, Trash2, Wallet, HandCoins, MinusCircle } from "lucide-react";
 import { TruckEmpty } from "@/components/truck-drive";
@@ -156,7 +156,7 @@ function LedgerEntryRow({ driverId, entry }: { driverId: string; entry: DriverLe
 }
 
 function AddLedgerEntryForm({ driverId, onSaved }: { driverId: string; onSaved: () => void }) {
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(today());
   const [type, setType] = useState<DriverLedgerEntryType>("SalaryPaid");
   const [amount, setAmount] = useState("");
   const [forMonth, setForMonth] = useState(new Date().toISOString().slice(0, 7));

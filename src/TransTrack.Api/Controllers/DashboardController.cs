@@ -10,8 +10,16 @@ namespace TransTrack.Api.Controllers;
 [Route("api/dashboard")]
 public class DashboardController(DashboardService dashboard) : ControllerBase
 {
+    /// <summary>Figures for one month. No year/month means the current one,
+    /// so an older client calling this without parameters keeps working.</summary>
     [HttpGet("summary")]
-    public async Task<ActionResult<DashboardSummary>> GetSummary() => Ok(await dashboard.GetSummaryAsync());
+    public async Task<ActionResult<DashboardSummary>> GetSummary(
+        [FromQuery] int? year, [FromQuery] int? month)
+        => Ok(await dashboard.GetSummaryAsync(year, month));
+
+    [HttpGet("months")]
+    public async Task<ActionResult<List<MonthOption>>> GetMonths([FromQuery] int minimumMonths = 6)
+        => Ok(await dashboard.GetSelectableMonthsAsync(minimumMonths));
 
     [HttpGet("monthly")]
     public async Task<ActionResult<List<MonthlyFigure>>> GetMonthly([FromQuery] int months = 6)

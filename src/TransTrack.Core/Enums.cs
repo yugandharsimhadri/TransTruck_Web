@@ -141,6 +141,30 @@ public enum DriverLedgerEntryType
     Deduction = 3
 }
 
+/// <summary>The paperwork a vehicle costs money on outside of maintenance —
+/// the renewals that come round whether the lorry moves or not. Kept apart
+/// from MaintenanceCategory (which is company-editable and about repairs)
+/// because these three drive the dashboard's "recurring expenses" figure and
+/// need to mean the same thing for every company.</summary>
+public enum VehicleExpenseKind
+{
+    Insurance = 1,
+    RoadTax = 2,
+    Other = 99
+}
+
+/// <summary>How often a vehicle expense repeats. None is a one-off payment on
+/// a single date; the rest generate a real row per period from the start date
+/// through to the end date, so each instalment is visible and editable on its
+/// own rather than being inferred.</summary>
+public enum ExpenseRecurrence
+{
+    None = 0,
+    Monthly = 1,
+    Quarterly = 2,
+    Yearly = 3
+}
+
 public enum AppThemeKind
 {
     Light = 1,
