@@ -58,6 +58,37 @@ public sealed class DashboardWorkflow() : Workflow(
             "Salaries are what the month owes on the drivers on the books, said out loud "
             + "so a figure that never moves when wages are settled isn't mistaken for a bug.",
             () => c.ExpectVisibleAsync("Expected, whether paid or not"));
+
+        await c.StepAsync(
+            "Choosing a different month moves the figures with it, and the trip line "
+            + "names the month on show so it is never ambiguous which one you are reading.",
+            async () =>
+            {
+                var picker = WorkflowContext.Visible(
+                    c.Page.GetByRole(AriaRole.Combobox, new() { Name = "Month" }));
+
+                // The oldest offered month: furthest from the default, so a
+                // selection that silently fails to take is obvious.
+                var labels = await picker.Locator("option").AllTextContentsAsync();
+                var oldest = labels[^1].Trim();
+
+                // Both halves of that line matter. The month name comes from the
+                // selection, so it proves the picker was heard; the trip count
+                // beside it comes from the fetched summary, so it proves the
+                // figures behind the tiles were refetched for the new month and
+                // not left on the previous month's answer.
+                var tripLine = WorkflowContext.Visible(c.Page.GetByText("Tap to see them all")
+                    .Locator("xpath=preceding-sibling::*[1]"));
+                var before = (await tripLine.TextContentAsync())?.Trim();
+
+                await picker.SelectOptionAsync(new SelectOptionValue { Label = oldest });
+                await c.ExpectVisibleAsync($"in {oldest}");
+
+                var after = (await tripLine.TextContentAsync())?.Trim();
+                if (before == after)
+                    throw new InvalidOperationException(
+                        $"The month changed to {oldest} but the figures did not: still '{after}'.");
+            });
     }
 }
 
