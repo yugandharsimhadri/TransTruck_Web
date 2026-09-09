@@ -165,9 +165,13 @@ public static class ReportExcelBuilder
         // is that the party can see what each one was.
         // No per-trip GST column: tax is charged once on the bill's total, so
         // it lands under the table with the grand total, matching the PDF.
+        // Advance and balance are always present here, unlike the PDF which
+        // hides them when nothing was advanced: a spreadsheet is worked on, and
+        // a column that appears and disappears between months breaks whatever
+        // the office has built on top of it.
         string[] headers = [
             "S NO", "DATE", "LR NO", "VEHICLE NO", "FROM", "TO", "WEIGHT", "RATE",
-            "FREIGHT", "WAYMENT", "LOADING", "UNLOADING", "TOTAL"
+            "FREIGHT", "WAYMENT", "LOADING", "UNLOADING", "TOTAL", "ADVANCE", "BALANCE"
         ];
         for (var i = 0; i < headers.Length; i++) sheet.Cell(2, i + 1).Value = headers[i];
         sheet.Row(2).Style.Font.Bold = true;
@@ -188,6 +192,8 @@ public static class ReportExcelBuilder
             sheet.Cell(row, 11).Value = r.LoadingCharge;
             sheet.Cell(row, 12).Value = r.UnloadingCharge;
             sheet.Cell(row, 13).Value = r.TotalBeforeTax;
+            sheet.Cell(row, 14).Value = r.AdvanceReceived;
+            sheet.Cell(row, 15).Value = r.BalanceDue;
             row++;
         }
 
@@ -197,6 +203,8 @@ public static class ReportExcelBuilder
         sheet.Cell(row, 11).Value = report.TotalLoading;
         sheet.Cell(row, 12).Value = report.TotalUnloading;
         sheet.Cell(row, 13).Value = report.TotalBeforeTax;
+        sheet.Cell(row, 14).Value = report.TotalAdvance;
+        sheet.Cell(row, 15).Value = report.TotalBeforeTax - report.TotalAdvance;
         sheet.Row(row).Style.Font.Bold = true;
 
         // Tax and the amount payable, beneath the table the same way the
@@ -209,6 +217,19 @@ public static class ReportExcelBuilder
             row++;
             sheet.Cell(row, 12).Value = "GRAND TOTAL";
             sheet.Cell(row, 13).Value = report.GrandTotal;
+            sheet.Row(row).Style.Font.Bold = true;
+        }
+
+        // The advance comes off after the tax, matching the PDF: GST is owed on
+        // the freight's value, not on the part of it still unpaid.
+        if (report.HasAdvance)
+        {
+            row++;
+            sheet.Cell(row, 12).Value = "LESS ADVANCE";
+            sheet.Cell(row, 13).Value = -report.TotalAdvance;
+            row++;
+            sheet.Cell(row, 12).Value = "BALANCE PAYABLE";
+            sheet.Cell(row, 13).Value = report.BalancePayable;
             sheet.Row(row).Style.Font.Bold = true;
         }
 

@@ -1,4 +1,5 @@
 using QuestPDF.Fluent;
+using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using TransTrack.Core;
 
@@ -19,10 +20,27 @@ namespace TransTrack.Api.Documents;
 /// </summary>
 public static class PartyBillDocument
 {
-    public static byte[] Build(PartyReport report, Company company) =>
-        Document.Create(container => PdfHelpers.Page(container, page =>
+    public static byte[] Build(PartyReport report, Company company)
+    {
+        // A bill carrying every addition plus the advance and balance runs to
+        // fourteen columns. On A4 portrait that wraps registration numbers and
+        // splits figures across lines, so such a bill is turned on its side
+        // rather than shrunk: the type stays the size someone can actually read
+        // a money column at.
+        //
+        // Only when it is needed, though. The ordinary bill — plain freight, no
+        // advance — stays portrait, matching the LR and the per-trip bill a
+        // party receives alongside it.
+        var wide = report.HasAdvance
+            && (report.HasWayment || report.HasLoading || report.HasUnloading);
+
+        var bodyFont = 8f;
+        var headFont = 7f;
+        var gutter = 2f;
+
+        return Document.Create(container => PdfHelpers.Page(container, page =>
         {
-            page.Size(QuestPDF.Helpers.PageSizes.A4);
+            page.Size(wide ? PageSizes.A4.Landscape() : PageSizes.A4);
 
             page.Content().Column(col =>
             {
@@ -42,12 +60,10 @@ public static class PartyBillDocument
                 {
                     table.ColumnsDefinition(c =>
                     {
-                        // Widths are tight because a fully-loaded bill runs to
-                        // twelve columns on A4 portrait. The route gives up the
-                        // most room: it wraps onto a second line and stays
+                        // The route gives up the most room when space is
+                        // short: it wraps onto a second line and stays
                         // readable, whereas a money column that wraps splits a
-                        // figure across two lines, and "UNLOADING" broken over
-                        // a line break reads as a different word.
+                        // figure across two lines.
                         c.ConstantColumn(20);                 // S.No
                         c.RelativeColumn(1.15f);              // Date
                         c.RelativeColumn(1.05f);              // LR No
@@ -66,14 +82,24 @@ public static class PartyBillDocument
                         if (report.HasUnloading) c.RelativeColumn(1.45f);
 
                         c.RelativeColumn(1.35f);              // Total
+
+                        // Only when something was actually advanced. A party
+                        // who always pays on receipt should get a plain bill
+                        // rather than a column of zeroes beside a balance that
+                        // just repeats the total.
+                        if (report.HasAdvance)
+                        {
+                            c.RelativeColumn(1.25f);          // Advance
+                            c.RelativeColumn(1.35f);          // Balance
+                        }
                     });
 
                     table.Header(h =>
                     {
                         void Head(string text, bool right = false)
                         {
-                            var cell = h.Cell().BorderBottom(0.75f).BorderColor(PdfHelpers.Line).PaddingBottom(4).PaddingRight(2);
-                            (right ? cell.AlignRight() : cell).Text(text).FontSize(7f).SemiBold().FontColor(PdfHelpers.Muted);
+                            var cell = h.Cell().BorderBottom(0.75f).BorderColor(PdfHelpers.Line).PaddingBottom(4).PaddingRight(gutter);
+                            (right ? cell.AlignRight() : cell).Text(text).FontSize(headFont).SemiBold().FontColor(PdfHelpers.Muted);
                         }
 
                         Head("#");
@@ -88,14 +114,19 @@ public static class PartyBillDocument
                         if (report.HasLoading) Head("LOADING", right: true);
                         if (report.HasUnloading) Head("UNLOADING", right: true);
                         Head("TOTAL", right: true);
+                        if (report.HasAdvance)
+                        {
+                            Head("ADVANCE", right: true);
+                            Head("BALANCE", right: true);
+                        }
                     });
 
                     foreach (var r in report.Rows)
                     {
                         void Cell(string text, bool right = false)
                         {
-                            var cell = table.Cell().PaddingVertical(2).PaddingRight(2);
-                            (right ? cell.AlignRight() : cell).Text(text).FontSize(8);
+                            var cell = table.Cell().PaddingVertical(2).PaddingRight(gutter);
+                            (right ? cell.AlignRight() : cell).Text(text).FontSize(bodyFont);
                         }
 
                         Cell(r.SerialNo.ToString());
@@ -114,13 +145,19 @@ public static class PartyBillDocument
                         // beneath the table, so adding it per row as well would
                         // make the column sum to more than the bill.
                         Cell($"{r.TotalBeforeTax:N2}", right: true);
+
+                        if (report.HasAdvance)
+                        {
+                            Cell(r.AdvanceReceived > 0 ? $"{r.AdvanceReceived:N2}" : "—", right: true);
+                            Cell($"{r.BalanceDue:N2}", right: true);
+                        }
                     }
 
                     // The foot repeats each column's own total, so the bill can
                     // be checked down a column rather than only across a row.
                     void Foot(string text, bool right = false, bool bold = true)
                     {
-                        var cell = table.Cell().BorderTop(0.75f).BorderColor(PdfHelpers.Line).PaddingTop(4).PaddingRight(2);
+                        var cell = table.Cell().BorderTop(0.75f).BorderColor(PdfHelpers.Line).PaddingTop(4).PaddingRight(gutter);
                         var styled = (right ? cell.AlignRight() : cell).Text(text).FontSize(8.5f);
                         if (bold) styled.Bold();
                     }
@@ -137,15 +174,25 @@ public static class PartyBillDocument
                     if (report.HasLoading) Foot($"{report.TotalLoading:N2}", right: true);
                     if (report.HasUnloading) Foot($"{report.TotalUnloading:N2}", right: true);
                     Foot($"{report.TotalBeforeTax:N2}", right: true);
+                    if (report.HasAdvance)
+                    {
+                        Foot($"{report.TotalAdvance:N2}", right: true);
+                        Foot($"{report.TotalBeforeTax - report.TotalAdvance:N2}", right: true);
+                    }
                 });
 
-                // Tax is charged once, on the bill's total, so it lives here
-                // rather than in the table. Without GST the table's own TOTAL
-                // is already the amount payable and this block would only
-                // repeat it.
-                if (report.HasGst)
+                // The amount being asked for, spelled out. Tax is charged once
+                // on the bill's total so it lives here rather than in the
+                // table, and the advance comes off after it — GST is owed on
+                // the value of the freight, not on the unpaid portion of it, so
+                // deducting first would under-charge the tax.
+                //
+                // Skipped entirely only when there is nothing to add or take
+                // off, in which case the table's own TOTAL is already the
+                // amount payable and this block would just repeat it.
+                if (report.HasGst || report.HasAdvance)
                 {
-                    col.Item().PaddingTop(10).AlignRight().Width(240).Table(summary =>
+                    col.Item().PaddingTop(10).AlignRight().Width(260).Table(summary =>
                     {
                         summary.ColumnsDefinition(c => { c.RelativeColumn(3); c.RelativeColumn(2); });
 
@@ -157,13 +204,26 @@ public static class PartyBillDocument
                         }
 
                         Line("Total before tax", report.TotalBeforeTax);
-                        Line(report.GstLabel, report.TotalGst);
-                        Line("Grand total", report.GrandTotal, bold: true);
+
+                        if (report.HasGst)
+                        {
+                            Line(report.GstLabel, report.TotalGst);
+                            Line("Grand total", report.GrandTotal, bold: !report.HasAdvance);
+                        }
+
+                        if (report.HasAdvance)
+                        {
+                            Line("Less advance received", -report.TotalAdvance);
+                            Line("Balance payable", report.BalancePayable, bold: true);
+                        }
                     });
                 }
 
+                // The words name the sum being asked for, not the gross bill.
+                // On a payment request those differ the moment an advance has
+                // been taken, and the figure a payer reads back is this one.
                 col.Item().PaddingTop(8)
-                    .Text($"Rupees in words: {NumberToWords.ToRupees(report.GrandTotal)}").FontSize(8.5f);
+                    .Text($"Rupees in words: {NumberToWords.ToRupees(report.BalancePayable)}").FontSize(8.5f);
 
                 if (company.CanPrintBankDetails)
                 {
@@ -186,4 +246,5 @@ public static class PartyBillDocument
 
             page.Footer().AlignCenter().Text(t => t.CurrentPageNumber().FontSize(8));
         })).GeneratePdf();
+    }
 }

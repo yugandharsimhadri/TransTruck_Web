@@ -105,7 +105,7 @@ export default function PartyBillsPage() {
           <>
             <div className="grid grid-cols-2 gap-3">
               <Totals label="Trips" value={report.rows.length.toString()} />
-              <Totals label="Bill total" value={formatCurrency(report.grandTotal)} />
+              <Totals label={report.hasAdvance ? "Balance payable" : "Bill total"} value={formatCurrency(report.balancePayable)} />
             </div>
 
             {/* The same freight → extras → tax → total the printed bill shows,
@@ -116,13 +116,21 @@ export default function PartyBillsPage() {
                 {report.hasWayment && <Line label="Wayment" value={report.totalWayment} />}
                 {report.hasLoading && <Line label="Loading" value={report.totalLoading} />}
                 {report.hasUnloading && <Line label="Unloading" value={report.totalUnloading} />}
-                <Line label="Total before tax" value={report.totalBeforeTax} bold={!report.hasGst} />
+                <Line label="Total before tax" value={report.totalBeforeTax} bold={!report.hasGst && !report.hasAdvance} />
                 {/* Tax lands on the bill's total, not on each trip, so it sits
                     here rather than in the rows above. */}
                 {report.hasGst && (
                   <>
                     <Line label={report.gstLabel} value={report.totalGst} />
-                    <Line label="Grand total" value={report.grandTotal} bold />
+                    <Line label="Grand total" value={report.grandTotal} bold={!report.hasAdvance} />
+                  </>
+                )}
+                {/* The advance comes off after the tax: GST is owed on what the
+                    freight was worth, not on the part of it still unpaid. */}
+                {report.hasAdvance && (
+                  <>
+                    <Line label="Less advance received" value={-report.totalAdvance} />
+                    <Line label="Balance payable" value={report.balancePayable} bold />
                   </>
                 )}
               </CardContent>
@@ -146,9 +154,10 @@ export default function PartyBillsPage() {
                         {r.waymentCharge > 0 ? ` · wayment ${formatCurrency(r.waymentCharge)}` : ""}
                         {r.loadingCharge > 0 ? ` · loading ${formatCurrency(r.loadingCharge)}` : ""}
                         {r.unloadingCharge > 0 ? ` · unloading ${formatCurrency(r.unloadingCharge)}` : ""}
+                        {r.advanceReceived > 0 ? ` · advance ${formatCurrency(r.advanceReceived)}` : ""}
                       </p>
                     </div>
-                    <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(r.totalBeforeTax)}</p>
+                    <p className="shrink-0 font-semibold tabular-nums">{formatCurrency(r.balanceDue)}</p>
                   </CardContent>
                 </Card>
               ))}

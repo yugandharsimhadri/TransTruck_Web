@@ -78,7 +78,8 @@ public record PartyTripRow(
     decimal LoadingCharge = 0,
     decimal UnloadingCharge = 0,
     decimal GstAmount = 0,
-    decimal? GstPercentage = null)
+    decimal? GstPercentage = null,
+    decimal AdvanceReceived = 0)
 {
     public decimal TotalExtras => WaymentCharge + LoadingCharge + UnloadingCharge;
 
@@ -87,6 +88,12 @@ public record PartyTripRow(
 
     /// <summary>What this trip contributes to the party's bill.</summary>
     public decimal GrandTotal => TotalBeforeTax + GstAmount;
+
+    /// <summary>What is still owed on this trip once the advance already taken
+    /// against it is knocked off. Measured against the pre-tax total because
+    /// that is what the TOTAL column beside it shows — the tax is charged once
+    /// on the whole bill, beneath the table.</summary>
+    public decimal BalanceDue => TotalBeforeTax - AdvanceReceived;
 }
 
 /// <summary>The party-wise report: the party's name and the period it covers
@@ -109,6 +116,24 @@ public record PartyReport(
 
     /// <summary>What the party is actually billed for the period.</summary>
     public decimal GrandTotal => Rows.Sum(r => r.GrandTotal);
+
+    /// <summary>Advances already taken against these trips.</summary>
+    public decimal TotalAdvance => Rows.Sum(r => r.AdvanceReceived);
+
+    /// <summary>
+    /// What the party is being asked to pay: the whole bill, tax included, less
+    /// what they have already advanced.
+    ///
+    /// Deducted after the tax rather than before it, because GST is charged on
+    /// the value of the freight, not on the portion left unpaid — taking the
+    /// advance off first would under-charge the tax.
+    /// </summary>
+    public decimal BalancePayable => GrandTotal - TotalAdvance;
+
+    /// <summary>Whether anything was advanced in this period. The advance and
+    /// balance columns are hidden when nothing was, so a party that always
+    /// pays on receipt gets a plain bill rather than a column of zeroes.</summary>
+    public bool HasAdvance => TotalAdvance != 0;
 
     /// <summary>Whether any trip in the period carried an extra or tax — the
     /// bill hides those columns entirely when none did, rather than printing

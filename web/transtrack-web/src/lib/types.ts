@@ -499,6 +499,10 @@ export interface PartyTripRow {
   totalBeforeTax: number;
   /** What this trip contributes to the bill. */
   grandTotal: number;
+  /** Advance already taken against this trip. */
+  advanceReceived: number;
+  /** totalBeforeTax less the advance. */
+  balanceDue: number;
 }
 
 export interface PartyReport {
@@ -520,6 +524,11 @@ export interface PartyReport {
   hasWayment: boolean;
   hasLoading: boolean;
   hasUnloading: boolean;
+  /** Advances already taken against these trips. */
+  totalAdvance: number;
+  /** Grand total less the advance: what the party is being asked to pay. */
+  balancePayable: number;
+  hasAdvance: boolean;
   /** The one rate the whole bill was taxed at, or null when trips in the
    *  period were booked at different rates. */
   gstRate?: number | null;

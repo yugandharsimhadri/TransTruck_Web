@@ -175,6 +175,11 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
             .Include(t => t.Vehicle)
             .Include(t => t.FromCity)
             .Include(t => t.ToCity)
+            // The bill is a request for payment, so it has to say what has
+            // already been advanced against these trips. Without the receipts
+            // loaded every advance reads as zero and the bill asks for money
+            // the party has already handed over.
+            .Include(t => t.Transactions.Where(x => !x.IsDeleted))
             .Where(t => !t.IsDeleted && t.PartyId == partyId);
 
         if (from is { } f) query = query.Where(t => t.Date >= f.Date);
@@ -188,7 +193,7 @@ public class ReportsService(IDbContextFactory<AppDbContext> factory)
             i + 1, t.Date, t.Vehicle.RegNo, t.FromCity.Name, t.ToCity.Name,
             t.Weight, t.Rate, t.Amount,
             t.LrNo, t.WaymentCharge, t.LoadingCharge, t.UnloadingCharge, t.GstAmount,
-            t.GstPercentage)).ToList();
+            t.GstPercentage, t.TotalAdvanceReceived)).ToList();
 
         return new PartyReport(party.Name, DescribePeriod(from, to), rows);
     }

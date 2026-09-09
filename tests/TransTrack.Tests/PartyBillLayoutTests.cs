@@ -140,3 +140,109 @@ public class PartyBillLayoutTests
         Assert.NotEmpty(pdf);
     }
 }
+
+/// <summary>
+/// The party bill as a request for payment.
+///
+/// The number that matters is the one at the bottom: what this party owes now,
+/// after the advances already taken off them. The ordering is the part worth
+/// pinning — the advance comes off after the tax, because GST is charged on
+/// what the freight was worth, not on the portion still unpaid. Deducting
+/// first would quietly under-charge the tax on every bill with an advance.
+/// </summary>
+public class PartyBillPaymentTests
+{
+    static PartyBillPaymentTests()
+    {
+        QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+    }
+
+    private static PartyTripRow Row(int n, decimal amount, decimal gst = 0, decimal advance = 0) =>
+        new(n, new DateTime(2026, 9, n), "KA01AA1111", "A", "B", 10m, amount / 10m, amount,
+            $"LR{n:00000}", 0, 0, 0, gst, gst > 0 ? 5m : null, advance);
+
+    private static PartyReport ReportOf(params PartyTripRow[] rows) =>
+        new("Sri Traders", "SEPTEMBER-2026", rows);
+
+    [Fact]
+    public void A_trips_balance_is_its_total_less_what_was_advanced_on_it()
+    {
+        var row = Row(1, 10_000m, advance: 4_000m);
+
+        Assert.Equal(10_000m, row.TotalBeforeTax);
+        Assert.Equal(4_000m, row.AdvanceReceived);
+        Assert.Equal(6_000m, row.BalanceDue);
+    }
+
+    [Fact]
+    public void The_advance_comes_off_after_the_tax_not_before_it()
+    {
+        // 10,000 of freight at 5% is 500 of tax whether or not 4,000 was
+        // advanced. Taking the advance off first would charge 300 and quietly
+        // short the government by 200 on this one bill.
+        var report = ReportOf(Row(1, 10_000m, gst: 500m, advance: 4_000m));
+
+        Assert.Equal(10_000m, report.TotalBeforeTax);
+        Assert.Equal(500m, report.TotalGst);
+        Assert.Equal(10_500m, report.GrandTotal);
+        Assert.Equal(4_000m, report.TotalAdvance);
+        Assert.Equal(6_500m, report.BalancePayable);
+    }
+
+    [Fact]
+    public void With_no_advance_the_balance_payable_is_simply_the_bill()
+    {
+        var report = ReportOf(Row(1, 10_000m, gst: 500m), Row(2, 6_000m, gst: 300m));
+
+        Assert.False(report.HasAdvance);
+        Assert.Equal(report.GrandTotal, report.BalancePayable);
+    }
+
+    [Fact]
+    public void Advances_across_several_trips_all_come_off_the_one_bill()
+    {
+        var report = ReportOf(
+            Row(1, 10_000m, advance: 4_000m),
+            Row(2, 8_000m, advance: 1_500m),
+            Row(3, 6_000m));
+
+        Assert.True(report.HasAdvance);
+        Assert.Equal(24_000m, report.TotalBeforeTax);
+        Assert.Equal(5_500m, report.TotalAdvance);
+        Assert.Equal(18_500m, report.BalancePayable);
+
+        // And the per-trip balances sum to the same figure, so the column can
+        // be checked down as well as across.
+        Assert.Equal(18_500m, report.Rows.Sum(r => r.BalanceDue));
+    }
+
+    [Fact]
+    public void An_advance_that_covers_the_whole_trip_leaves_nothing_to_pay()
+    {
+        var report = ReportOf(Row(1, 10_000m, advance: 10_000m));
+
+        Assert.Equal(0m, report.BalancePayable);
+        Assert.Equal(0m, Assert.Single(report.Rows).BalanceDue);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(4000, 0)]
+    [InlineData(0, 500)]
+    [InlineData(4000, 500)]
+    public void The_bill_renders_with_or_without_an_advance(decimal advance, decimal gst)
+    {
+        var report = ReportOf(Row(1, 10_000m, gst: gst, advance: advance), Row(2, 6_000m));
+
+        // The advance and balance columns are conditional, which is exactly
+        // where a QuestPDF table's header, body and footer drift out of step.
+        var pdf = PartyBillDocument.Build(report, new Company
+        {
+            CompanyName = "Test Transport",
+            OwnerName = "Owner",
+            OwnerPhone = "9999999999",
+        });
+
+        Assert.NotEmpty(pdf);
+    }
+}
