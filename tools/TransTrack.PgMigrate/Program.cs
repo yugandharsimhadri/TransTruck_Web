@@ -75,13 +75,31 @@ internal static class Program
             BulkCopyMode = true,
         };
 
-        var existingCompanies = await target.Companies.IgnoreQueryFilters().CountAsync();
-        if (existingCompanies > 0)
+        // Checked across every table, not just Companies: CompanyId is a
+        // plain column with no enforced foreign key back to Companies (the
+        // tenant filter is application-level, not a database constraint), so
+        // clearing Companies alone leaves States, Cities and every other
+        // table untouched — a prior partial reset that looks empty at a
+        // glance but collides on the first insert.
+        var existingRows =
+            await target.Companies.IgnoreQueryFilters().CountAsync() +
+            await target.States.IgnoreQueryFilters().CountAsync() +
+            await target.Cities.IgnoreQueryFilters().CountAsync() +
+            await target.Owners.IgnoreQueryFilters().CountAsync() +
+            await target.Parties.IgnoreQueryFilters().CountAsync() +
+            await target.Drivers.IgnoreQueryFilters().CountAsync() +
+            await target.Vehicles.IgnoreQueryFilters().CountAsync() +
+            await target.Users.IgnoreQueryFilters().CountAsync() +
+            await target.Trips.IgnoreQueryFilters().CountAsync();
+
+        if (existingRows > 0)
         {
             Console.Error.WriteLine(
-                $"The target database already has {existingCompanies} compan{(existingCompanies == 1 ? "y" : "ies")}. " +
+                $"The target database already has {existingRows} row(s) across its tables. " +
                 "Refusing to run again against a non-empty database — this tool has no way to tell which rows " +
-                "were already copied and would duplicate everything. Point it at an empty database instead.");
+                "were already copied and would duplicate everything. Truncate every table (not just Companies — " +
+                "CompanyId is not an enforced foreign key, so a Companies-only truncate leaves the rest behind) " +
+                "or point this at a freshly-migrated, empty database instead.");
             return 1;
         }
 
