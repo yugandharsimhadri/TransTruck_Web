@@ -20,17 +20,25 @@ set in the environment. Nothing else about how you invoke `dotnet run` or
 the published exe changes.
 
 **Production is still SQLite.** This merge only changes what the code is
-*capable* of running against. The live server (`C:\TransTruckWeb`, tunnelled
-to `ttapi.sivayaantechnologies.com`) has not been touched, its data has not
-moved, and redeploying this `main` there as-is will fail to start (Postgres
-isn't there yet) — see "Cutting production over" at the end of this runbook
-before ever pointing `deploy\publish-api.ps1` at that machine again.
+*capable* of running against. Production is a **separate, remote server**
+(the API at `C:\server\loapi`, tunnelled to `ttapi.sivayaantechnologies.com`
+/ `loapi.lorryowner.com`) — not this dev machine. It has not been touched,
+its data has not moved, and deploying this `main` there as-is will fail to
+start until Postgres is set up there — see "Cutting production over" at the
+end of this runbook, which is the actual step-by-step for that server.
+
+The live SQLite file at `C:\TransTruckWeb\DB\TransTruckWeb.db` is reachable
+from this dev machine too (shared/synced access) — that's what every dev-
+machine run of `TransTrack.PgMigrate` in this document actually reads from.
+The production cutover itself still runs the tool **on the production server**
+against its own local copy of that same file, not remotely from here.
 
 ### Build paths (local, already built and verified working)
 
 | What | Path | Run with |
 |---|---|---|
 | API (Release, published) | `C:\TransTruckWeb-Postgres\publish` | `TransTrack.Api.exe`, with `TRANSTRUCKWEB_PG_CONNECTION` and `ASPNETCORE_URLS` set (below) |
+| Data-copy tool (Release, published — standalone, no SDK needed) | `C:\TransTruckWeb-Postgres\pgmigrate` | `TransTrack.PgMigrate.exe --sqlite "<path>" --yes` |
 | Frontend (production build) | `web/transtrack-web` (`.next` + `node_modules`) | `npm run start`, from that folder |
 
 Deliberately **not** `C:\TransTruckWeb\publish` (the live production path) or
@@ -91,21 +99,92 @@ export TRANSTRUCKWEB_PG_CONNECTION='Host=localhost;Database=transtruckweb;Userna
    ```
    Rebuild (`npm run build`) after changing `.env.local` if the API moves.
 
-### Cutting production over (not done — do this first)
+### Cutting production over — run these on the production server itself
 
-Do not redeploy `main` to the production machine until, in order:
+Production is a **remote machine** (API at `C:\server\loapi`, tunnelled to
+`ttapi.sivayaantechnologies.com` / `loapi.lorryowner.com`), separate from
+wherever this repo is checked out. Everything below runs **on that server**,
+in PowerShell, one step at a time. Postgres is already installed there but
+has no database or role yet.
 
-1. A real Postgres server is provisioned and reachable from that machine.
-2. `TRANSTRUCKWEB_PG_CONNECTION` is set there (a machine-level env var, the
-   same way `TRANSTRUCKWEB_ROOT` is set today per `DEPLOYMENT.md`).
-3. `tools/TransTrack.PgMigrate` has been run **against the real production
-   SQLite file**, not a local copy, and its summary confirms every table
-   copied.
-4. The reconciliation step this document's original plan calls for below
-   ("Moving the data," step 4) has actually been done against that real data.
+Two things are published and ready to copy over from a dev machine that has
+built this repo (`dotnet publish`, done once):
 
-Until then, keep production's deploy pinned to the last SQLite-only commit
-rather than `main` HEAD.
+| What | Where it was published (dev machine) |
+|---|---|
+| API (Release) | `C:\TransTruckWeb-Postgres\publish` |
+| Data-copy tool (Release, standalone — no SDK needed on the server) | `C:\TransTruckWeb-Postgres\pgmigrate` |
+
+Copy both folders to the production server before starting (e.g. under
+`C:\TransTruckWeb-Postgres\` there too, or anywhere convenient — they're
+self-contained).
+
+#### 1. Create the Postgres role and database
+
+```powershell
+$env:PGPASSWORD = 'your-postgres-superuser-password'
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U postgres -c "CREATE ROLE transtrack_app LOGIN PASSWORD 'a-strong-password';"
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U postgres -c "CREATE DATABASE transtruckweb OWNER transtrack_app;"
+```
+
+#### 2. Back up the current production API folder
+
+Rename or copy `C:\server\loapi` aside (e.g. `C:\server\loapi-sqlite-backup`)
+— this is the rollback if anything below goes wrong. The SQLite database
+file itself is untouched by anything in this guide; back it up too if you
+want extra safety, but nothing here deletes or modifies it.
+
+#### 3. Stop the production API
+
+Downtime starts here. Stop the running `TransTrack.Api.exe` process (however
+it's currently run — Task Scheduler, a service, or a console window).
+
+#### 4. Copy the data — from the server's own local SQLite file
+
+```powershell
+cd C:\TransTruckWeb-Postgres\pgmigrate
+$env:TRANSTRUCKWEB_PG_CONNECTION = "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password"
+.\TransTrack.PgMigrate.exe --sqlite "C:\TransTruckWeb\DB\TransTruckWeb.db" --yes
+```
+
+Read the `=== Migration summary ===` block it prints: confirm
+`Result: SUCCESS` and check the row counts look right before continuing. If
+it fails, nothing was written (it's one transaction) — the summary names
+exactly which table it stopped on.
+
+#### 5. Deploy the new API build
+
+Copy the contents of `C:\TransTruckWeb-Postgres\publish` into `C:\server\loapi`
+(replacing what step 2 backed up).
+
+#### 6. Set the config
+
+```powershell
+[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password", "Machine")
+```
+
+This is a **machine-level** variable so it survives however the API gets
+started (service, Task Scheduler, a new console). Open a **new** PowerShell
+window (or restart the service) after setting it — an already-open window
+won't pick it up.
+
+#### 7. Start the API
+
+Start `TransTrack.Api.exe` from `C:\server\loapi` the same way it's normally
+started there. Watch its log for `PostgreSQL database ready.`
+
+#### 8. Verify, then close the downtime window
+
+Sign in, open a real trip, check the dashboard. Once it looks right,
+downtime is over.
+
+#### Rollback, if anything's wrong
+
+Stop the new API. Restore the folder backed up in step 2 into
+`C:\server\loapi`. Remove or clear the `TRANSTRUCKWEB_PG_CONNECTION` machine
+variable (`[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", $null, "Machine")`).
+Start the old exe. The SQLite file was never touched, so this is a clean,
+immediate revert.
 
 ---
 
