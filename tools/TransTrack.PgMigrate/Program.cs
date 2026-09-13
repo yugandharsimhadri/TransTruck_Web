@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using TransTrack.Core;
@@ -24,6 +25,7 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        var stopwatch = Stopwatch.StartNew();
         var sqlitePath = ArgOrEnv(args, "--sqlite", DbBootstrapper.PathOverrideVariable) ?? DbBootstrapper.DatabasePath;
         var pgConnection = ArgOrEnv(args, "--pg", DbBootstrapper.PgConnectionOverrideVariable);
         var skipConfirm = args.Contains("--yes");
@@ -61,7 +63,7 @@ internal static class Program
 
         Console.WriteLine($"Snapshotted source database to {snapshotDir}.");
 
-        await EnsureSchemaCurrentAsync(snapshotPath);
+        var schemaFixes = await EnsureSchemaCurrentAsync(snapshotPath);
 
         await using var source = new AppDbContext(
             new DbContextOptionsBuilder<AppDbContext>().UseSqlite($"Data Source={snapshotPath}").Options);
@@ -106,31 +108,31 @@ internal static class Program
         // FK-safe order: every entity here comes after everything it
         // references, so foreign keys always resolve on insert. Derived from
         // every HasOne/HasForeignKey call in AppDbContext.OnModelCreating.
-        var steps = new List<Func<Task<int>>>
+        var steps = new List<(string Table, Func<Task<int>> Run)>
         {
-            () => CopyAsync(source, target, s => s.Companies, t => t.Companies),
-            () => CopyAsync(source, target, s => s.States, t => t.States),
-            () => CopyAsync(source, target, s => s.Cities, t => t.Cities),
-            () => CopyAsync(source, target, s => s.Owners, t => t.Owners),
-            () => CopyAsync(source, target, s => s.Parties, t => t.Parties),
-            () => CopyAsync(source, target, s => s.Drivers, t => t.Drivers),
-            () => CopyAsync(source, target, s => s.Vehicles, t => t.Vehicles),
-            () => CopyAsync(source, target, s => s.Documents, t => t.Documents),
-            () => CopyAsync(source, target, s => s.ExpenseCategories, t => t.ExpenseCategories),
-            () => CopyAsync(source, target, s => s.MaintenanceCategories, t => t.MaintenanceCategories),
-            () => CopyAsync(source, target, s => s.Counters, t => t.Counters),
-            () => CopyAsync(source, target, s => s.Users, t => t.Users),
-            () => CopyAsync(source, target, s => s.Trips, t => t.Trips),
-            () => CopyAsync(source, target, s => s.TripExpenses, t => t.TripExpenses),
+            ("Company", () => CopyAsync(source, target, s => s.Companies, t => t.Companies)),
+            ("State", () => CopyAsync(source, target, s => s.States, t => t.States)),
+            ("City", () => CopyAsync(source, target, s => s.Cities, t => t.Cities)),
+            ("Owner", () => CopyAsync(source, target, s => s.Owners, t => t.Owners)),
+            ("Party", () => CopyAsync(source, target, s => s.Parties, t => t.Parties)),
+            ("Driver", () => CopyAsync(source, target, s => s.Drivers, t => t.Drivers)),
+            ("Vehicle", () => CopyAsync(source, target, s => s.Vehicles, t => t.Vehicles)),
+            ("StoredDocument", () => CopyAsync(source, target, s => s.Documents, t => t.Documents)),
+            ("ExpenseCategory", () => CopyAsync(source, target, s => s.ExpenseCategories, t => t.ExpenseCategories)),
+            ("MaintenanceCategory", () => CopyAsync(source, target, s => s.MaintenanceCategories, t => t.MaintenanceCategories)),
+            ("Counter", () => CopyAsync(source, target, s => s.Counters, t => t.Counters)),
+            ("User", () => CopyAsync(source, target, s => s.Users, t => t.Users)),
+            ("Trip", () => CopyAsync(source, target, s => s.Trips, t => t.Trips)),
+            ("TripExpense", () => CopyAsync(source, target, s => s.TripExpenses, t => t.TripExpenses)),
             // Settlements before TripTransactions: a transaction can carry a
             // SettlementId, so the settlement it points at must exist first.
-            () => CopyAsync(source, target, s => s.Settlements, t => t.Settlements),
-            () => CopyAsync(source, target, s => s.TripTransactions, t => t.TripTransactions),
-            () => CopyAsync(source, target, s => s.VehicleMaintenances, t => t.VehicleMaintenances),
-            () => CopyAsync(source, target, s => s.VehicleExpenseSchedules, t => t.VehicleExpenseSchedules),
-            () => CopyAsync(source, target, s => s.VehicleExpenses, t => t.VehicleExpenses),
-            () => CopyAsync(source, target, s => s.DriverLedgerEntries, t => t.DriverLedgerEntries),
-            () => CopyAsync(source, target, s => s.AuditLogs, t => t.AuditLogs),
+            ("Settlement", () => CopyAsync(source, target, s => s.Settlements, t => t.Settlements)),
+            ("TripTransaction", () => CopyAsync(source, target, s => s.TripTransactions, t => t.TripTransactions)),
+            ("VehicleMaintenance", () => CopyAsync(source, target, s => s.VehicleMaintenances, t => t.VehicleMaintenances)),
+            ("VehicleExpenseSchedule", () => CopyAsync(source, target, s => s.VehicleExpenseSchedules, t => t.VehicleExpenseSchedules)),
+            ("VehicleExpense", () => CopyAsync(source, target, s => s.VehicleExpenses, t => t.VehicleExpenses)),
+            ("DriverLedgerEntry", () => CopyAsync(source, target, s => s.DriverLedgerEntries, t => t.DriverLedgerEntries)),
+            ("AuditLog", () => CopyAsync(source, target, s => s.AuditLogs, t => t.AuditLogs)),
         };
 
         if (!skipConfirm)
@@ -144,22 +146,87 @@ internal static class Program
             }
         }
 
+        var results = new List<(string Table, int Rows)>();
+
         await using var transaction = await target.Database.BeginTransactionAsync();
         try
         {
-            var total = 0;
-            foreach (var step in steps)
-                total += await step();
+            foreach (var (table, run) in steps)
+                results.Add((table, await run()));
 
             await transaction.CommitAsync();
-            Console.WriteLine($"Done. Copied {total} rows.");
-            return 0;
         }
-        catch
+        catch (Exception ex)
         {
             await transaction.RollbackAsync();
-            throw;
+
+            var failedAt = steps[results.Count].Table;
+            PrintSummary(sqlitePath, pgConnection, schemaFixes, results, stopwatch.Elapsed,
+                error: $"Failed on \"{failedAt}\" — nothing was written, the whole transaction rolled back.\n" +
+                       FormatExceptionChain(ex));
+            return 1;
         }
+
+        PrintSummary(sqlitePath, pgConnection, schemaFixes, results, stopwatch.Elapsed, error: null);
+        return 0;
+    }
+
+    /// <summary>
+    /// One block at the end covering everything that matters: what ran,
+    /// what it found and fixed along the way, and — on failure — exactly
+    /// where it stopped and why, without a raw .NET stack trace standing in
+    /// for an answer.
+    /// </summary>
+    private static void PrintSummary(
+        string sqlitePath, string pgConnection, List<string> schemaFixes,
+        List<(string Table, int Rows)> results, TimeSpan elapsed, string? error)
+    {
+        Console.WriteLine();
+        Console.WriteLine("=== Migration summary ===");
+        Console.WriteLine($"Source:   {sqlitePath}");
+        Console.WriteLine($"Target:   {RedactPassword(pgConnection)}");
+        Console.WriteLine($"Duration: {elapsed.TotalSeconds:F1}s");
+
+        Console.WriteLine();
+        Console.WriteLine(schemaFixes.Count == 0
+            ? "Schema: source already current, no fixes needed."
+            : $"Schema fixes applied ({schemaFixes.Count}):");
+        foreach (var fix in schemaFixes) Console.WriteLine($"  - {fix}");
+
+        Console.WriteLine();
+        if (results.Count == 0)
+        {
+            Console.WriteLine("Tables copied: none.");
+        }
+        else
+        {
+            Console.WriteLine($"Tables copied ({results.Count} of {results.Count + (error is null ? 0 : 1)} attempted):");
+            foreach (var (table, rows) in results)
+                Console.WriteLine($"  {table,-24} {rows,6} row{(rows == 1 ? "" : "s")}");
+            Console.WriteLine($"  {"TOTAL",-24} {results.Sum(r => r.Rows),6}");
+        }
+
+        Console.WriteLine();
+        if (error is null)
+        {
+            Console.WriteLine("Result: SUCCESS — every table copied, transaction committed.");
+        }
+        else
+        {
+            Console.WriteLine("Result: FAILED");
+            Console.WriteLine(error);
+        }
+    }
+
+    /// <summary>Message-only, innermost-first — the .NET stack trace is
+    /// still there in the raw exception if someone needs it, but the summary
+    /// is for "what happened," not "where in EF Core it happened."</summary>
+    private static string FormatExceptionChain(Exception ex)
+    {
+        var messages = new List<string>();
+        for (var current = ex; current is not null; current = current.InnerException)
+            messages.Add(current.Message);
+        return string.Join(Environment.NewLine, messages.Select((m, i) => new string(' ', i * 2) + "- " + m));
     }
 
     /// <summary>
@@ -172,8 +239,10 @@ internal static class Program
     /// own Up() methods, and guarded so this is a no-op against a source
     /// database that already has both.
     /// </summary>
-    private static async Task EnsureSchemaCurrentAsync(string snapshotPath)
+    private static async Task<List<string>> EnsureSchemaCurrentAsync(string snapshotPath)
     {
+        var fixesApplied = new List<string>();
+
         await using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={snapshotPath}");
         await connection.OpenAsync();
 
@@ -202,7 +271,9 @@ internal static class Program
 
         if (!await TableExistsAsync("Settlements"))
         {
-            Console.WriteLine("Source schema predates BulkSettlement: adding Settlements table and TripTransactions.SettlementId.");
+            const string fix = "Source predates BulkSettlement (2026-09-06): added Settlements table and TripTransactions.SettlementId.";
+            Console.WriteLine(fix);
+            fixesApplied.Add(fix);
 
             await ExecAsync("""
                 CREATE TABLE "Settlements" (
@@ -233,9 +304,13 @@ internal static class Program
         {
             if (await ColumnExistsAsync(table, column)) continue;
 
-            Console.WriteLine($"Source schema predates PlaceActiveFlag: adding {table}.{column}.");
+            var fix = $"Source predates PlaceActiveFlag (2026-09-06): added {table}.{column}.";
+            Console.WriteLine(fix);
+            fixesApplied.Add(fix);
             await ExecAsync($"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" INTEGER NOT NULL DEFAULT 1");
         }
+
+        return fixesApplied;
     }
 
     /// <summary>
