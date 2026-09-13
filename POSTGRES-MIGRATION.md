@@ -1,13 +1,111 @@
 # Moving from SQLite to PostgreSQL
 
-**Status: plan only. Nothing here is implemented.**
-Written 2026-09-09 against `main` @ `b0fac14`, by reading the code rather than
-from general advice. Every claim below cites where it came from, so it can be
-re-checked when the code has moved on.
+**Status: implemented and merged to `main`** (commit `9134099`, 2026-09-13).
+Everything below "Is this worth doing?" was written 2026-09-09 as a plan, before
+any of it existed — kept as-is for the reasoning behind each decision. The
+recommendation at the bottom ("do not do this now") was the honest answer
+*at that time*; the user chose to proceed anyway, so read that section as
+history, not current advice. **For how to actually run this, see the runbook
+immediately below.**
 
-Companion to [SQL-SERVER-MIGRATION.md](SQL-SERVER-MIGRATION.md), which plans
-the same move to SQL Server. **Read the verdict below before reading either:
-the two are alternatives, and today neither is worth doing.**
+---
+
+## Runbook: running this build
+
+### What changed, in one line
+
+The API now runs on either database — SQLite (unchanged default) or
+PostgreSQL — decided entirely by whether `TRANSTRUCKWEB_PG_CONNECTION` is
+set in the environment. Nothing else about how you invoke `dotnet run` or
+the published exe changes.
+
+**Production is still SQLite.** This merge only changes what the code is
+*capable* of running against. The live server (`C:\TransTruckWeb`, tunnelled
+to `ttapi.sivayaantechnologies.com`) has not been touched, its data has not
+moved, and redeploying this `main` there as-is will fail to start (Postgres
+isn't there yet) — see "Cutting production over" at the end of this runbook
+before ever pointing `deploy\publish-api.ps1` at that machine again.
+
+### Build paths (local, already built and verified working)
+
+| What | Path | Run with |
+|---|---|---|
+| API (Release, published) | `C:\TransTruckWeb-Postgres\publish` | `TransTrack.Api.exe`, with `TRANSTRUCKWEB_PG_CONNECTION` and `ASPNETCORE_URLS` set (below) |
+| Frontend (production build) | `web/transtrack-web` (`.next` + `node_modules`) | `npm run start`, from that folder |
+
+Deliberately **not** `C:\TransTruckWeb\publish` (the live production path) or
+the committed Cloudflare Pages ZIP — both stay untouched so this can never be
+confused with, or accidentally overwrite, the real deployment.
+
+### One-time setup: database and role
+
+```bash
+export PGPASSWORD='your-postgres-superuser-password'
+psql -h localhost -U postgres -c "CREATE ROLE transtrack_app LOGIN PASSWORD 'a-strong-password';"
+psql -h localhost -U postgres -c "CREATE DATABASE transtruckweb OWNER transtrack_app;"
+```
+
+Never use the `postgres` superuser role for the running app.
+
+### Config change: the one environment variable
+
+```bash
+export TRANSTRUCKWEB_PG_CONNECTION='Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password'
+```
+
+- Set → the app uses Postgres (`Program.cs`, `DbBootstrapper.cs`,
+  `DesignTimeDbContextFactory.cs` all branch on this).
+- Unset → SQLite exactly as before. No code or config file changes needed
+  either way.
+- **Never** put the password in a committed file — this mirrors how the JWT
+  signing key is kept outside the repo (`C:\TransTruckWeb\secrets`).
+
+### Step by step: schema, then data, then run
+
+1. **Create the schema** (once, against the empty database):
+   ```bash
+   dotnet ef database update --project src/TransTrack.Data --startup-project src/TransTrack.Data
+   ```
+2. **Copy the data** from the live SQLite file:
+   ```bash
+   dotnet run --project tools/TransTrack.PgMigrate -- --sqlite "C:/TransTruckWeb/DB/TransTruckWeb.db" --yes
+   ```
+   Full behavior, the end-of-run summary format, and how to reset the target
+   for a re-run are documented in
+   [tools/TransTrack.PgMigrate/README.md](tools/TransTrack.PgMigrate/README.md)
+   — read that before re-running it against a non-empty database.
+3. **Run the API**:
+   ```bash
+   # dev, from source:
+   dotnet run --project src/TransTrack.Api
+
+   # or the published build:
+   cd C:\TransTruckWeb-Postgres\publish
+   set ASPNETCORE_URLS=http://localhost:5034
+   TransTrack.Api.exe
+   ```
+4. **Run the frontend** (already built against `NEXT_PUBLIC_API_URL=http://localhost:5034` in `.env.local`):
+   ```bash
+   cd web/transtrack-web
+   npm run start
+   ```
+   Rebuild (`npm run build`) after changing `.env.local` if the API moves.
+
+### Cutting production over (not done — do this first)
+
+Do not redeploy `main` to the production machine until, in order:
+
+1. A real Postgres server is provisioned and reachable from that machine.
+2. `TRANSTRUCKWEB_PG_CONNECTION` is set there (a machine-level env var, the
+   same way `TRANSTRUCKWEB_ROOT` is set today per `DEPLOYMENT.md`).
+3. `tools/TransTrack.PgMigrate` has been run **against the real production
+   SQLite file**, not a local copy, and its summary confirms every table
+   copied.
+4. The reconciliation step this document's original plan calls for below
+   ("Moving the data," step 4) has actually been done against that real data.
+
+Until then, keep production's deploy pinned to the last SQLite-only commit
+rather than `main` HEAD.
 
 ---
 
