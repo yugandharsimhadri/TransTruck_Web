@@ -9,6 +9,37 @@ namespace TransTrack.Data;
 
 public class AppDbContext : DbContext
 {
+    /// <summary>Every DateTime/DateTime? column that holds a calendar day
+    /// rather than an instant — mapped to Postgres `date` in OnModelCreating
+    /// below. Exposed publicly so the SQLite-to-Postgres migration tool can
+    /// tell the two kinds of column apart too: an instant read back out of
+    /// SQLite always comes back with DateTime.Kind=Unspecified (SQLite does
+    /// not store the Kind at all), which Npgsql refuses outright for
+    /// `timestamp with time zone` — every such value has to be re-stamped
+    /// Kind=Utc before it can be written, and a calendar-day `date` column
+    /// must not be, since Kind is meaningless for it.</summary>
+    public static readonly HashSet<(string Entity, string Property)> CalendarDayProperties =
+    [
+        (nameof(Driver), nameof(Driver.JoiningDate)),
+        (nameof(Vehicle), nameof(Vehicle.PermitUpto)),
+        (nameof(Vehicle), nameof(Vehicle.NationalPermitUpto)),
+        (nameof(Vehicle), nameof(Vehicle.InsuranceUpto)),
+        (nameof(Vehicle), nameof(Vehicle.FitnessUpto)),
+        (nameof(Vehicle), nameof(Vehicle.PollutionUpto)),
+        (nameof(Vehicle), nameof(Vehicle.LoanStartDate)),
+        (nameof(Vehicle), nameof(Vehicle.LoanEndDate)),
+        (nameof(Trip), nameof(Trip.Date)),
+        (nameof(TripExpense), nameof(TripExpense.Date)),
+        (nameof(TripTransaction), nameof(TripTransaction.Date)),
+        (nameof(Settlement), nameof(Settlement.Date)),
+        (nameof(VehicleMaintenance), nameof(VehicleMaintenance.Date)),
+        (nameof(VehicleMaintenance), nameof(VehicleMaintenance.NextDueDate)),
+        (nameof(VehicleExpenseSchedule), nameof(VehicleExpenseSchedule.StartDate)),
+        (nameof(VehicleExpenseSchedule), nameof(VehicleExpenseSchedule.EndDate)),
+        (nameof(VehicleExpense), nameof(VehicleExpense.Date)),
+        (nameof(DriverLedgerEntry), nameof(DriverLedgerEntry.Date)),
+    ];
+
     private readonly ICurrentUserContext _currentUser;
 
     // The current-user context is optional so every existing caller — every
@@ -66,6 +97,18 @@ public class AppDbContext : DbContext
             property.SetScale(2);
         }
 
+        // Calendar days (a due date, a trip date) carry no time-of-day and no
+        // timezone, so they map to Postgres `date` rather than the default
+        // `timestamp with time zone` -- the latter demands DateTime.Kind=Utc,
+        // which these values (DateTime.Today, user-picked dates) never have.
+        foreach (var entityType in b.Model.GetEntityTypes())
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType != typeof(DateTime) && property.ClrType != typeof(DateTime?)) continue;
+                if (CalendarDayProperties.Contains((entityType.ClrType.Name, property.Name)))
+                    property.SetColumnType("date");
+            }
+
         b.Entity<Company>(e => e.Ignore(x => x.HasLogo).Ignore(x => x.IsLicenseValid).Ignore(x => x.CanPrintBankDetails));
 
         b.Entity<State>(e => e.HasIndex(x => x.Name));
@@ -92,7 +135,7 @@ public class AppDbContext : DbContext
 
         b.Entity<Vehicle>(e =>
         {
-            e.HasIndex(x => new { x.CompanyId, x.RegNo }).IsUnique().HasFilter("\"IsDeleted\" = 0");
+            e.HasIndex(x => new { x.CompanyId, x.RegNo }).IsUnique().HasFilter("\"IsDeleted\" = false");
             e.HasOne(x => x.Owner).WithMany()
                 .HasForeignKey(x => x.OwnerId).OnDelete(DeleteBehavior.Restrict);
             e.Ignore(x => x.Display);
@@ -265,17 +308,29 @@ public class AppDbContext : DbContext
         b.Entity<T>().HasQueryFilter(filter);
     }
 
+    /// <summary>Escape hatch for the SQLite-to-Postgres data-copy utility: it
+    /// writes rows that already carry their real historical CreatedAt/UpdatedAt
+    /// and should not generate a fresh audit-log entry for every row of a
+    /// one-time migration. Never set outside that tool.</summary>
+    public bool BulkCopyMode { get; set; }
+
     public override int SaveChanges()
     {
-        Stamp();
-        AddAuditEntries();
+        if (!BulkCopyMode)
+        {
+            Stamp();
+            AddAuditEntries();
+        }
         return base.SaveChanges();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        Stamp();
-        AddAuditEntries();
+        if (!BulkCopyMode)
+        {
+            Stamp();
+            AddAuditEntries();
+        }
         return base.SaveChangesAsync(cancellationToken);
     }
 
@@ -311,7 +366,7 @@ public class AppDbContext : DbContext
         if (tracked.Count == 0) return;
 
         var userId = _currentUser.UserId;
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var logs = new List<AuditLog>(tracked.Count);
 
         foreach (var entry in tracked)
@@ -489,7 +544,7 @@ public class AppDbContext : DbContext
         {
             if (entry.State == EntityState.Added)
             {
-                entry.Entity.CreatedAt = DateTime.Now;
+                entry.Entity.CreatedAt = DateTime.UtcNow;
                 entry.Entity.CreatedByUserId = userId;
 
                 // Safety net alongside services setting CompanyId explicitly:
@@ -505,7 +560,7 @@ public class AppDbContext : DbContext
             }
             else if (entry.State == EntityState.Modified)
             {
-                entry.Entity.UpdatedAt = DateTime.Now;
+                entry.Entity.UpdatedAt = DateTime.UtcNow;
                 entry.Entity.UpdatedByUserId = userId;
             }
         }

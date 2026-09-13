@@ -88,7 +88,7 @@ public class AuthService(IDbContextFactory<AppDbContext> factory, ICurrentUserCo
                 "Your company's license has expired or is inactive. Contact your provider to renew it.");
         }
 
-        user.LastLoginOn = DateTime.Now;
+        user.LastLoginOn = DateTime.UtcNow;
         await db.SaveChangesAsync();
 
         return LoginResult.Success(user);

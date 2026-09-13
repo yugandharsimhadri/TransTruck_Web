@@ -36,7 +36,15 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 // ── Data layer — same IDbContextFactory<AppDbContext> pattern the desktop
 // app uses; every TransTrack.Data service opens its own short-lived context
 // per call, so this stays a factory rather than a scoped DbContext. ────────
-builder.Services.AddDbContextFactory<AppDbContext>(o => o.UseSqlite(DbBootstrapper.ConnectionString));
+builder.Services.AddDbContextFactory<AppDbContext>(o =>
+{
+    // TRANSTRUCKWEB_PG_CONNECTION switches the whole app onto PostgreSQL;
+    // unset, it keeps using the SQLite file exactly as before.
+    if (DbBootstrapper.UsePostgres)
+        o.UseNpgsql(DbBootstrapper.PostgresConnectionString);
+    else
+        o.UseSqlite(DbBootstrapper.ConnectionString);
+});
 
 // ── TransTrack.Data services — mirrors App.xaml.cs's registrations. ───────
 builder.Services.AddSingleton<AuthService>();
