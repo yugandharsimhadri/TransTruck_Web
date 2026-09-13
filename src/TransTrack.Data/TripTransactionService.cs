@@ -90,7 +90,7 @@ public class TripTransactionService(IDbContextFactory<AppDbContext> factory)
 
         entity.ApprovalStatus = ApprovalStatus.Approved;
         entity.ApprovedByUserId = approvedByUserId;
-        entity.ApprovedOn = DateTime.Now;
+        entity.ApprovedOn = DateTime.UtcNow;
         entity.ApprovalRemarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
 
         await db.SaveChangesAsync();
@@ -106,7 +106,7 @@ public class TripTransactionService(IDbContextFactory<AppDbContext> factory)
 
         entity.ApprovalStatus = ApprovalStatus.Rejected;
         entity.ApprovedByUserId = approvedByUserId;
-        entity.ApprovedOn = DateTime.Now;
+        entity.ApprovedOn = DateTime.UtcNow;
         entity.ApprovalRemarks = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
 
         await db.SaveChangesAsync();

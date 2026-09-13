@@ -195,7 +195,7 @@ public class SettlementService(IDbContextFactory<AppDbContext> factory)
         if (settlement.ApprovalStatus != ApprovalStatus.Pending)
             throw new InvalidOperationException(AlreadyDecidedMessage);
 
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var trimmed = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
 
         settlement.ApprovalStatus = ApprovalStatus.Approved;
@@ -243,7 +243,7 @@ public class SettlementService(IDbContextFactory<AppDbContext> factory)
         if (settlement.ApprovalStatus != ApprovalStatus.Pending)
             throw new InvalidOperationException(AlreadyDecidedMessage);
 
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var trimmed = string.IsNullOrWhiteSpace(remarks) ? null : remarks.Trim();
 
         settlement.ApprovalStatus = ApprovalStatus.Rejected;

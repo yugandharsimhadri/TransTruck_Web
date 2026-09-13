@@ -16,6 +16,18 @@ public class DesignTimeDbContextFactory : IDesignTimeDbContextFactory<AppDbConte
 {
     public AppDbContext CreateDbContext(string[] args)
     {
+        // Same TRANSTRUCKWEB_PG_CONNECTION switch the running app honours, so
+        // `dotnet ef migrations add` scaffolds against whichever provider the
+        // app would actually start against.
+        if (DbBootstrapper.UsePostgres)
+        {
+            var pgOptions = new DbContextOptionsBuilder<AppDbContext>()
+                .UseNpgsql(DbBootstrapper.PostgresConnectionString)
+                .Options;
+
+            return new AppDbContext(pgOptions);
+        }
+
         var path = Environment.GetEnvironmentVariable(DbBootstrapper.PathOverrideVariable);
         if (string.IsNullOrWhiteSpace(path)) path = "design.db";
 

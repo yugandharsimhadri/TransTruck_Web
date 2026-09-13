@@ -3,7 +3,7 @@ namespace TransTrack.Core;
 public abstract class BaseEntity
 {
     public Guid Id { get; set; } = Guid.NewGuid();
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }
 
@@ -727,7 +727,7 @@ public class AuditLog : BaseEntity, ITenantEntity
     public AuditAction Action { get; set; }
 
     public Guid? ChangedByUserId { get; set; }
-    public DateTime ChangedOn { get; set; } = DateTime.Now;
+    public DateTime ChangedOn { get; set; } = DateTime.UtcNow;
 
     /// <summary>A one-line plain-English description of the change, written at
     /// capture time — the reader shouldn't have to parse JSON to see what

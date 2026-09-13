@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>TransTrack.PgMigrate</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\TransTrack.Core\TransTrack.Core.csproj" />
+    <ProjectReference Include="..\..\src\TransTrack.Data\TransTrack.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- TransTrack.Data already carries this package (kept there so the test
+         projects still compile against SQLite), but this tool opens a SQLite
+         connection directly rather than through DbBootstrapper, so it takes
+         its own reference rather than relying on the transitive one. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.*" />
+  </ItemGroup>
+
+</Project>

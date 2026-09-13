@@ -309,7 +309,7 @@ public class TripService(IDbContextFactory<AppDbContext> factory)
         var trip = await db.Trips.FirstOrDefaultAsync(t => t.Id == tripId) ?? throw new InvalidOperationException("Trip not found.");
 
         trip.Status = TripStatus.Closed;
-        trip.ClosedOn = DateTime.Now;
+        trip.ClosedOn = DateTime.UtcNow;
         trip.ClosedByUserId = closedByUserId;
 
         await db.SaveChangesAsync();

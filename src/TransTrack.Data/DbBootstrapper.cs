@@ -17,6 +17,23 @@ public static class DbBootstrapper
     /// writes into the real C:\TransTruckWeb\DBBackup.</summary>
     public const string BackupDirectoryOverrideVariable = "TRANSTRUCKWEB_BACKUPDIR";
 
+    /// <summary>Set TRANSTRUCKWEB_PG_CONNECTION to a full Npgsql connection
+    /// string (e.g. "Host=localhost;Database=transtruckweb;Username=postgres;
+    /// Password=...") to run against PostgreSQL instead of the default SQLite
+    /// file. Deliberately an environment variable rather than a config file
+    /// key, so the password is never written to anything tracked by git —
+    /// same reasoning as keeping the JWT signing key outside the repo.</summary>
+    public const string PgConnectionOverrideVariable = "TRANSTRUCKWEB_PG_CONNECTION";
+
+    /// <summary>True once TRANSTRUCKWEB_PG_CONNECTION is set. Checked at every
+    /// call site that would otherwise assume SQLite (the file path, the WAL
+    /// pragmas, the file-copy backups) so the same binary runs against either
+    /// database depending on what is set in the environment it starts in.</summary>
+    public static bool UsePostgres => !string.IsNullOrWhiteSpace(PostgresConnectionString);
+
+    public static string? PostgresConnectionString =>
+        Environment.GetEnvironmentVariable(PgConnectionOverrideVariable);
+
     /// <summary>Database file lives under a fixed root so every Windows user of the PC shares it.</summary>
     public static string DatabasePath
     {
@@ -103,6 +120,21 @@ public static class DbBootstrapper
     /// seed.</summary>
     public static async Task InitialiseAsync(IDbContextFactory<AppDbContext> factory)
     {
+        // Postgres is a server, not a file: there is nothing here to copy for
+        // a backup and no journal-mode pragma to set, so this path skips
+        // straight to applying migrations. Backing up a server database is a
+        // pg_dump concern for whoever operates that server, not this app.
+        if (UsePostgres)
+        {
+            await using var pgDb = await factory.CreateDbContextAsync();
+            var pgPending = (await pgDb.Database.GetPendingMigrationsAsync()).ToList();
+            if (pgPending.Count > 0)
+                AppLog.Info($"Applying migrations to PostgreSQL: {string.Join(", ", pgPending)}");
+            await pgDb.Database.MigrateAsync();
+            AppLog.Info("PostgreSQL database ready.");
+            return;
+        }
+
         var existed = File.Exists(DatabasePath);
 
         AppLog.Info(existed
