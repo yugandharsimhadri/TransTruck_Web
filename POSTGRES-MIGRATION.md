@@ -139,7 +139,43 @@ want extra safety, but nothing here deletes or modifies it.
 Downtime starts here. Stop the running `TransTrack.Api.exe` process (however
 it's currently run — Task Scheduler, a service, or a console window).
 
-#### 4. Copy the data — from the server's own local SQLite file
+#### 4. Set the config
+
+```powershell
+[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password", "Machine")
+```
+
+This is a **machine-level** variable so it survives however the API gets
+started (service, Task Scheduler, a new console). Open a **new** PowerShell
+window (or restart the service) after setting it — an already-open window
+won't pick it up. Do this before step 5, since the app decides SQLite vs
+Postgres by reading this variable the moment it starts.
+
+#### 5. Deploy the new API build
+
+Copy the contents of `C:\TransTruckWeb-Postgres\publish` into `C:\server\loapi`
+(replacing what step 2 backed up).
+
+#### 6. Start it once to create the schema, then stop it again
+
+The database from step 1 is empty — no tables yet. The app creates them
+itself, automatically, the moment it starts against an empty Postgres
+database (the same migration machinery that already runs against SQLite
+today). `TransTrack.PgMigrate.exe` (next step) only copies rows *into*
+existing tables — it cannot create them, and fails with `relation
+"Companies" does not exist` if you skip this step.
+
+```powershell
+cd C:\server\loapi
+.\TransTrack.Api.exe
+```
+
+Watch for `Applying migrations to PostgreSQL: 20260913152646_InitialCreate`
+then `PostgreSQL database ready.` in the console — that confirms every
+table now exists. Then `Ctrl+C` to stop it again; this was only to create
+the schema, not to go live with an empty database.
+
+#### 7. Copy the data
 
 ```powershell
 cd C:\TransTruckWeb-Postgres\pgmigrate
@@ -152,28 +188,18 @@ Read the `=== Migration summary ===` block it prints: confirm
 it fails, nothing was written (it's one transaction) — the summary names
 exactly which table it stopped on.
 
-#### 5. Deploy the new API build
-
-Copy the contents of `C:\TransTruckWeb-Postgres\publish` into `C:\server\loapi`
-(replacing what step 2 backed up).
-
-#### 6. Set the config
+#### 8. Start the API for real
 
 ```powershell
-[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password", "Machine")
+cd C:\server\loapi
+.\TransTrack.Api.exe
 ```
 
-This is a **machine-level** variable so it survives however the API gets
-started (service, Task Scheduler, a new console). Open a **new** PowerShell
-window (or restart the service) after setting it — an already-open window
-won't pick it up.
+Watch for `No migrations were applied. The database is already up to date.`
+this time — confirming it found the schema already there — then
+`PostgreSQL database ready.` and `Now listening on: ...`.
 
-#### 7. Start the API
-
-Start `TransTrack.Api.exe` from `C:\server\loapi` the same way it's normally
-started there. Watch its log for `PostgreSQL database ready.`
-
-#### 8. Verify, then close the downtime window
+#### 9. Verify, then close the downtime window
 
 Sign in, open a real trip, check the dashboard. Once it looks right,
 downtime is over.
