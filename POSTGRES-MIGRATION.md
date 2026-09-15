@@ -141,15 +141,28 @@ it's currently run — Task Scheduler, a service, or a console window).
 
 #### 4. Set the config
 
+**All three of these matter, not just the connection string** — found the
+hard way: skipping the first two doesn't break the app outright, it just
+makes it fall back to `appsettings.json`'s dev defaults, which only allow
+CORS from `http://localhost:3000` and silently block the real production
+frontend's login request with no error on the server side at all — it
+looks like nothing is wrong here while the browser is the one refusing it.
+
 ```powershell
+[Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production", "Machine")
+[Environment]::SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:6041", "Machine")
 [Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password", "Machine")
 ```
 
-This is a **machine-level** variable so it survives however the API gets
+These are **machine-level** variables so they survive however the API gets
 started (service, Task Scheduler, a new console). Open a **new** PowerShell
-window (or restart the service) after setting it — an already-open window
-won't pick it up. Do this before step 5, since the app decides SQLite vs
-Postgres by reading this variable the moment it starts.
+window (or restart the service) after setting them — an already-open window
+won't pick them up. Do this before step 5, since the app reads all three
+the moment it starts.
+
+> This deployment doesn't use `deploy\run-api.ps1` or its `<root>\secrets\jwt.key`
+> convention — there's no `secrets` folder here, and that's fine. That script
+> is one way to run the API, not a requirement; nothing above depends on it.
 
 #### 5. Deploy the new API build
 
@@ -203,6 +216,31 @@ this time — confirming it found the schema already there — then
 
 Sign in, open a real trip, check the dashboard. Once it looks right,
 downtime is over.
+
+#### Re-running the data copy (after a rollback, or any other reason to reload)
+
+If production went back to SQLite for a while — a rollback, a delayed
+cutover — it kept taking real writes in the meantime, so whatever's in
+Postgres from an earlier attempt is now stale. `TransTrack.PgMigrate.exe`
+refuses to run against a non-empty database (see step 7), so clear every
+table first:
+
+```powershell
+$env:PGPASSWORD = 'a-strong-password'
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U transtrack_app -d transtruckweb -c '
+TRUNCATE TABLE
+  "AuditLogs","Cities","Companies","Counters","Documents","DriverLedgerEntries",
+  "Drivers","ExpenseCategories","MaintenanceCategories","Owners","Parties",
+  "Settlements","States","TripExpenses","TripTransactions","Trips","Users",
+  "VehicleExpenseSchedules","VehicleExpenses","VehicleMaintenances","Vehicles"
+CASCADE;'
+```
+
+This clears every row but leaves the schema itself intact — step 6 (start
+once to create the schema) does not need repeating. Then re-run step 7
+against the **current** live SQLite file (not an older downloaded copy —
+it's kept changing while production ran on SQLite), and continue from
+step 8.
 
 #### Rollback, if anything's wrong
 
