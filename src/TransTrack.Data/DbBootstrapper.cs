@@ -17,22 +17,33 @@ public static class DbBootstrapper
     /// writes into the real C:\TransTruckWeb\DBBackup.</summary>
     public const string BackupDirectoryOverrideVariable = "TRANSTRUCKWEB_BACKUPDIR";
 
-    /// <summary>Set TRANSTRUCKWEB_PG_CONNECTION to a full Npgsql connection
-    /// string (e.g. "Host=localhost;Database=transtruckweb;Username=postgres;
-    /// Password=...") to run against PostgreSQL instead of the default SQLite
-    /// file. Deliberately an environment variable rather than a config file
-    /// key, so the password is never written to anything tracked by git —
-    /// same reasoning as keeping the JWT signing key outside the repo.</summary>
+    /// <summary>Overrides <see cref="AppSettings.PostgresConnectionString"/>
+    /// when present. The config file is the ordinary place to set this (one
+    /// file, same as every other setting); this variable exists so a cloud
+    /// host can inject its own database credentials without rewriting the
+    /// file, and so an existing machine that already sets it keeps
+    /// working.</summary>
     public const string PgConnectionOverrideVariable = "TRANSTRUCKWEB_PG_CONNECTION";
 
-    /// <summary>True once TRANSTRUCKWEB_PG_CONNECTION is set. Checked at every
-    /// call site that would otherwise assume SQLite (the file path, the WAL
-    /// pragmas, the file-copy backups) so the same binary runs against either
-    /// database depending on what is set in the environment it starts in.</summary>
+    /// <summary>True once a Postgres connection string is configured, by
+    /// either route. Checked at every call site that would otherwise assume
+    /// SQLite (the file path, the WAL pragmas, the file-copy backups) so the
+    /// same binary runs against either database.</summary>
     public static bool UsePostgres => !string.IsNullOrWhiteSpace(PostgresConnectionString);
 
-    public static string? PostgresConnectionString =>
-        Environment.GetEnvironmentVariable(PgConnectionOverrideVariable);
+    /// <summary>Environment variable first so a cloud platform's injected
+    /// value wins, then appsettings.json — which is where this normally
+    /// lives.</summary>
+    public static string? PostgresConnectionString
+    {
+        get
+        {
+            var overridden = Environment.GetEnvironmentVariable(PgConnectionOverrideVariable);
+            return string.IsNullOrWhiteSpace(overridden)
+                ? AppConfig.Current.PostgresConnectionString
+                : overridden;
+        }
+    }
 
     /// <summary>Database file lives under a fixed root so every Windows user of the PC shares it.</summary>
     public static string DatabasePath
@@ -135,6 +146,26 @@ public static class DbBootstrapper
             return;
         }
 
+        // Said plainly, up front, rather than letting EF Core fail three
+        // frames deep with "the model has pending changes" — which is true
+        // but reads like a bug in the build rather than a missing setting.
+        //
+        // This build carries one migration, generated against Npgsql (the
+        // SQLite migrations it replaced are still in git history, on the
+        // commit before the Postgres merge). EF validates the model against
+        // that migration whatever the provider, so pointing this at SQLite
+        // cannot work — not for a new file, and not for an existing one.
+        // Rolling back to SQLite means running the previous build, not this
+        // one with the setting cleared.
+        throw new InvalidOperationException(
+            "No PostgreSQL connection string is configured, and this build cannot run on SQLite. " +
+            $"Set \"PostgresConnectionString\" in {AppConfig.FileName} (or the " +
+            $"{PgConnectionOverrideVariable} environment variable) to a connection string such as " +
+            "\"Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=...\". " +
+            "To go back to SQLite, redeploy the build from before the PostgreSQL migration instead.");
+
+#pragma warning disable CS0162 // Kept, not deleted: this is the SQLite path exactly as it was, and
+        // it is what comes back if the dual-provider support this replaced is ever restored.
         var existed = File.Exists(DatabasePath);
 
         AppLog.Info(existed
@@ -160,6 +191,7 @@ public static class DbBootstrapper
         await db.Database.MigrateAsync();
 
         await EnableConcurrentAccessAsync(db);
+#pragma warning restore CS0162
     }
 
     /// <summary>The newest backup on disk, or null if there has never been one.</summary>

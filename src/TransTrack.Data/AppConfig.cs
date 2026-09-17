@@ -17,8 +17,33 @@ public class AppSettings
     public string? LogDirectory { get; set; }
 
     /// <summary>Full path to the database file, including the file name. Null
-    /// uses DB\TransTruckWeb.db under <see cref="DataRoot"/>.</summary>
+    /// uses DB\TransTruckWeb.db under <see cref="DataRoot"/>. Ignored entirely
+    /// when <see cref="PostgresConnectionString"/> is set.</summary>
     public string? DatabasePath { get; set; }
+
+    /// <summary>
+    /// Set this to run on PostgreSQL; leave it null or empty to stay on the
+    /// SQLite file. This one setting is the whole switch — nothing else in
+    /// the configuration changes between the two.
+    ///
+    /// Example:
+    ///   "PostgresConnectionString": "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=..."
+    ///
+    /// Kept here, in the same file as every other setting, rather than only
+    /// in an environment variable: one file to edit on a new machine, and one
+    /// file to point at when this moves to a cloud host. The
+    /// TRANSTRUCKWEB_PG_CONNECTION environment variable still overrides it
+    /// when present, which is how a cloud platform injects its own database
+    /// credentials without the file being rewritten.
+    /// </summary>
+    public string? PostgresConnectionString { get; set; }
+
+    /// <summary>Serves the Swagger UI at /swagger. On by default so a
+    /// deployed API can always be exercised directly — every endpoint behind
+    /// it still requires the same authentication it always did, and the two
+    /// that don't (login, register) are reachable with or without Swagger.
+    /// Set false to hide the page.</summary>
+    public bool EnableSwagger { get; set; } = true;
 
     /// <summary>Where daily database backups are written.</summary>
     public string? BackupDirectory { get; set; }
@@ -37,6 +62,12 @@ public class AppSettings
     /// silently truncated 2.5 to 2. Rejected above this with a plain message
     /// rather than a failed request.</summary>
     public double VehicleDocumentMaxMb { get; set; } = 2.5;
+
+    /// <summary>Writes a line to the log for every request, not just the
+    /// failed ones. Off by default — on a working day this is almost all
+    /// noise, and it buries the entries that matter. Turn it on while
+    /// chasing something, turn it off after.</summary>
+    public bool LogRequests { get; set; }
 
     /// <summary>Days of log files to keep.</summary>
     public int LogDaysToKeep { get; set; } = 30;

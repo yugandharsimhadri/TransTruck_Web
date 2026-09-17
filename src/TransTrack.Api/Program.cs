@@ -255,11 +255,39 @@ using (var scope = app.Services.CreateScope())
 // the full detail still goes to the log.
 app.UseExceptionHandler();
 
-if (app.Environment.IsDevelopment())
+// Driven by configuration rather than the environment: a deployed API is
+// exactly where being able to call an endpoint directly matters most, and
+// tying this to ASPNETCORE_ENVIRONMENT meant the deployed one never had it.
+// Everything behind it still requires the same authentication.
+if (AppConfig.Current.EnableSwagger)
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+
+// One line per failed request in the log file, so "what happened at 14:32"
+// has an answer without attaching a debugger. Successful requests are left
+// out unless LogRequests says otherwise — on a normal day they are noise,
+// and the file is meant to stay readable enough to email.
+app.Use(async (context, next) =>
+{
+    var started = System.Diagnostics.Stopwatch.GetTimestamp();
+    await next();
+    var elapsed = System.Diagnostics.Stopwatch.GetElapsedTime(started);
+
+    var status = context.Response.StatusCode;
+    if (status < 400 && !AppConfig.Current.LogRequests) return;
+
+    var line = $"{context.Request.Method} {context.Request.Path}{context.Request.QueryString} " +
+               $"-> {status} in {elapsed.TotalMilliseconds:F0}ms";
+
+    // 4xx is the caller getting it wrong (a bad password, an expired
+    // session); 5xx is this application getting it wrong. Only the second
+    // one is an error in this log's sense — ApiExceptionHandler has already
+    // written the exception itself by the time we get here.
+    if (status >= 500) AppLog.Error(line);
+    else AppLog.Info(line);
+});
 
 app.UseHttpsRedirection();
 
