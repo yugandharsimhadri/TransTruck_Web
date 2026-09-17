@@ -111,19 +111,19 @@ public class AppDbContext : DbContext
 
         b.Entity<Company>(e => e.Ignore(x => x.HasLogo).Ignore(x => x.IsLicenseValid).Ignore(x => x.CanPrintBankDetails));
 
-        b.Entity<State>(e => e.HasIndex(x => x.Name));
+        b.Entity<State>(e => e.HasIndex(x => new { x.CompanyId, x.Name }));
 
         b.Entity<City>(e =>
         {
-            e.HasIndex(x => x.Name);
+            e.HasIndex(x => new { x.CompanyId, x.Name });
             e.HasOne(x => x.State).WithMany(s => s.Cities)
                 .HasForeignKey(x => x.StateId).OnDelete(DeleteBehavior.Restrict);
             e.Ignore(x => x.Display);
         });
 
-        b.Entity<Owner>(e => e.HasIndex(x => x.Name));
+        b.Entity<Owner>(e => e.HasIndex(x => new { x.CompanyId, x.Name }));
 
-        b.Entity<Party>(e => e.HasIndex(x => x.Name));
+        b.Entity<Party>(e => e.HasIndex(x => new { x.CompanyId, x.Name }));
 
         b.Entity<Driver>(e =>
         {
@@ -150,8 +150,8 @@ public class AppDbContext : DbContext
             e.HasIndex(x => new { x.OwnerKind, x.OwnerId });
         });
 
-        b.Entity<ExpenseCategory>(e => e.HasIndex(x => x.Name));
-        b.Entity<MaintenanceCategory>(e => e.HasIndex(x => x.Name));
+        b.Entity<ExpenseCategory>(e => e.HasIndex(x => new { x.CompanyId, x.Name }));
+        b.Entity<MaintenanceCategory>(e => e.HasIndex(x => new { x.CompanyId, x.Name }));
 
         b.Entity<Counter>(e =>
         {
@@ -285,7 +285,7 @@ public class AppDbContext : DbContext
             // The three ways the trail gets read: newest-first for the
             // activity feed, by record for one row's history, and by trip for
             // a trip's whole story.
-            e.HasIndex(x => x.ChangedOn);
+            e.HasIndex(x => new { x.CompanyId, x.ChangedOn });
             e.HasIndex(x => new { x.EntityType, x.EntityId });
             e.HasIndex(x => x.TripId);
         });

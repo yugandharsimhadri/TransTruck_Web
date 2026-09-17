@@ -9,186 +9,179 @@ history, not current advice. **For how to actually run this, see the runbook
 immediately below.**
 
 ---
+## Runbook: SQLite → PostgreSQL cutover
 
-## Runbook: running this build
+Everything below has been **rehearsed end to end** against a copy of the real
+production database (1276 rows, 132 trips, 8 companies) on 2026-09-17. Where a
+step says what you should see, that is what it actually printed in the
+rehearsal, not what it ought to print.
 
-### What changed, in one line
+Run every step **on the production server** (`C:\server\loapi`'s machine).
+Nothing here needs the .NET SDK or this repo on that machine — both tools are
+published as self-contained folders you copy over.
 
-The API now runs on either database — SQLite (unchanged default) or
-PostgreSQL — decided entirely by whether `TRANSTRUCKWEB_PG_CONNECTION` is
-set in the environment. Nothing else about how you invoke `dotnet run` or
-the published exe changes.
+---
 
-**Production is still SQLite.** This merge only changes what the code is
-*capable* of running against. Production is a **separate, remote server**
-(the API at `C:\server\loapi`, tunnelled to `ttapi.sivayaantechnologies.com`
-/ `loapi.lorryowner.com`) — not this dev machine. It has not been touched,
-its data has not moved, and deploying this `main` there as-is will fail to
-start until Postgres is set up there — see "Cutting production over" at the
-end of this runbook, which is the actual step-by-step for that server.
+### Before you start
 
-The live SQLite file at `C:\TransTruckWeb\DB\TransTruckWeb.db` is reachable
-from this dev machine too (shared/synced access) — that's what every dev-
-machine run of `TransTrack.PgMigrate` in this document actually reads from.
-The production cutover itself still runs the tool **on the production server**
-against its own local copy of that same file, not remotely from here.
+**What this changes.** The API moves from the SQLite file to PostgreSQL. The
+frontend does not change at all — it keeps calling the same URL, and nothing
+about the API's shape changes.
 
-### Build paths (local, already built and verified working)
+**What is already true on that server:** PostgreSQL is installed, with no
+database or role yet, and a previous attempt this week was rolled back — so
+there may be a half-migrated `transtruckweb` database still sitting there.
+Step 2 wipes it.
 
-| What | Path | Run with |
-|---|---|---|
-| API (Release, published) | `C:\TransTruckWeb-Postgres\publish` | `TransTrack.Api.exe`, with `TRANSTRUCKWEB_PG_CONNECTION` and `ASPNETCORE_URLS` set (below) |
-| Data-copy tool (Release, published — standalone, no SDK needed) | `C:\TransTruckWeb-Postgres\pgmigrate` | `TransTrack.PgMigrate.exe --sqlite "<path>" --yes` |
-| Frontend (production build) | `web/transtrack-web` (`.next` + `node_modules`) | `npm run start`, from that folder |
+**Two folders to copy over first**, both published from this repo:
 
-Deliberately **not** `C:\TransTruckWeb\publish` (the live production path) or
-the committed Cloudflare Pages ZIP — both stay untouched so this can never be
-confused with, or accidentally overwrite, the real deployment.
-
-### One-time setup: database and role
-
-```bash
-export PGPASSWORD='your-postgres-superuser-password'
-psql -h localhost -U postgres -c "CREATE ROLE transtrack_app LOGIN PASSWORD 'a-strong-password';"
-psql -h localhost -U postgres -c "CREATE DATABASE transtruckweb OWNER transtrack_app;"
-```
-
-Never use the `postgres` superuser role for the running app.
-
-### Config change: the one environment variable
-
-```bash
-export TRANSTRUCKWEB_PG_CONNECTION='Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password'
-```
-
-- Set → the app uses Postgres (`Program.cs`, `DbBootstrapper.cs`,
-  `DesignTimeDbContextFactory.cs` all branch on this).
-- Unset → SQLite exactly as before. No code or config file changes needed
-  either way.
-- **Never** put the password in a committed file — this mirrors how the JWT
-  signing key is kept outside the repo (`C:\TransTruckWeb\secrets`).
-
-### Step by step: schema, then data, then run
-
-1. **Create the schema** (once, against the empty database):
-   ```bash
-   dotnet ef database update --project src/TransTrack.Data --startup-project src/TransTrack.Data
-   ```
-2. **Copy the data** from the live SQLite file:
-   ```bash
-   dotnet run --project tools/TransTrack.PgMigrate -- --sqlite "C:/TransTruckWeb/DB/TransTruckWeb.db" --yes
-   ```
-   Full behavior, the end-of-run summary format, and how to reset the target
-   for a re-run are documented in
-   [tools/TransTrack.PgMigrate/README.md](tools/TransTrack.PgMigrate/README.md)
-   — read that before re-running it against a non-empty database.
-3. **Run the API**:
-   ```bash
-   # dev, from source:
-   dotnet run --project src/TransTrack.Api
-
-   # or the published build:
-   cd C:\TransTruckWeb-Postgres\publish
-   set ASPNETCORE_URLS=http://localhost:5034
-   TransTrack.Api.exe
-   ```
-4. **Run the frontend** (already built against `NEXT_PUBLIC_API_URL=http://localhost:5034` in `.env.local`):
-   ```bash
-   cd web/transtrack-web
-   npm run start
-   ```
-   Rebuild (`npm run build`) after changing `.env.local` if the API moves.
-
-### Cutting production over — run these on the production server itself
-
-Production is a **remote machine** (API at `C:\server\loapi`, tunnelled to
-`ttapi.sivayaantechnologies.com` / `loapi.lorryowner.com`), separate from
-wherever this repo is checked out. Everything below runs **on that server**,
-in PowerShell, one step at a time. Postgres is already installed there but
-has no database or role yet.
-
-Two things are published and ready to copy over from a dev machine that has
-built this repo (`dotnet publish`, done once):
-
-| What | Where it was published (dev machine) |
+| Folder | What it is |
 |---|---|
-| API (Release) | `C:\TransTruckWeb-Postgres\publish` |
-| Data-copy tool (Release, standalone — no SDK needed on the server) | `C:\TransTruckWeb-Postgres\pgmigrate` |
+| `C:\TransTruckWeb-Postgres\publish` | the new API build |
+| `C:\TransTruckWeb-Postgres\pgmigrate` | the one-time data-copy tool |
 
-Copy both folders to the production server before starting (e.g. under
-`C:\TransTruckWeb-Postgres\` there too, or anywhere convenient — they're
-self-contained).
+Put them anywhere on the server; the steps below assume the same paths.
 
-#### 1. Create the Postgres role and database
+**Prerequisite:** the ASP.NET Core 10 runtime, which the current API already
+needs. Confirm with:
+
+```powershell
+dotnet --list-runtimes | Select-String "AspNetCore"
+```
+
+---
+
+### 1. Generate a JWT signing key
+
+Do this first, because step 4 needs the value.
+
+```powershell
+$bytes = New-Object byte[] 64
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+$jwtKey = [Convert]::ToBase64String($bytes)
+$jwtKey
+```
+
+Copy what it prints. This replaces the placeholder key that ships in the
+repo — which is published on GitHub, so anyone can currently forge a token
+(including an EnterpriseAdmin recovery token, which needs no user id and
+would let them reset any company's password). Changing it signs everyone out
+once, which is the only downtime it causes.
+
+Keep this value. If you ever reinstall, reuse the **same** key or every
+session is invalidated again.
+
+### 2. Wipe the half-migrated database and create it fresh
+
+This is the "clear out what we rolled back" step. It drops the database
+entirely rather than truncating tables, so nothing survives from the earlier
+attempt — not stale rows, not a partial schema.
 
 ```powershell
 $env:PGPASSWORD = 'your-postgres-superuser-password'
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U postgres -c "CREATE ROLE transtrack_app LOGIN PASSWORD 'a-strong-password';"
-& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U postgres -c "CREATE DATABASE transtruckweb OWNER transtrack_app;"
+$psql = "C:\Program Files\PostgreSQL\18\bin\psql.exe"
+
+# Drops the database whether or not it exists, disconnecting anything using it.
+& $psql -h localhost -U postgres -c "DROP DATABASE IF EXISTS transtruckweb WITH (FORCE);"
+
+# Create the login the app uses. If it says the role already exists, that is
+# fine — the next line sets its password either way.
+& $psql -h localhost -U postgres -c "CREATE ROLE transtrack_app LOGIN PASSWORD 'a-strong-password';"
+& $psql -h localhost -U postgres -c "ALTER ROLE transtrack_app WITH PASSWORD 'a-strong-password';"
+
+& $psql -h localhost -U postgres -c "CREATE DATABASE transtruckweb OWNER transtrack_app;"
 ```
 
-#### 2. Back up the current production API folder
+Pick your own value for `a-strong-password` — the same value goes into the
+config in step 4. Use only letters and digits if you want to avoid quoting
+surprises in either file.
 
-Rename or copy `C:\server\loapi` aside (e.g. `C:\server\loapi-sqlite-backup`)
-— this is the rollback if anything below goes wrong. The SQLite database
-file itself is untouched by anything in this guide; back it up too if you
-want extra safety, but nothing here deletes or modifies it.
-
-#### 3. Stop the production API
-
-Downtime starts here. Stop the running `TransTrack.Api.exe` process (however
-it's currently run — Task Scheduler, a service, or a console window).
-
-#### 4. Set the config
-
-**All three of these matter, not just the connection string** — found the
-hard way: skipping the first two doesn't break the app outright, it just
-makes it fall back to `appsettings.json`'s dev defaults, which only allow
-CORS from `http://localhost:3000` and silently block the real production
-frontend's login request with no error on the server side at all — it
-looks like nothing is wrong here while the browser is the one refusing it.
+Confirm it is empty:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Production", "Machine")
-[Environment]::SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:6041", "Machine")
-[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password", "Machine")
+$env:PGPASSWORD = 'a-strong-password'
+& $psql -h localhost -U transtrack_app -d transtruckweb -c "\dt"
+```
+Expect: `Did not find any tables.`
+
+### 3. Back up what is running now
+
+```powershell
+Copy-Item -Path C:\server\loapi -Destination C:\server\loapi-sqlite-backup -Recurse
 ```
 
-These are **machine-level** variables so they survive however the API gets
-started (service, Task Scheduler, a new console). Open a **new** PowerShell
-window (or restart the service) after setting them — an already-open window
-won't pick them up. Do this before step 5, since the app reads all three
-the moment it starts.
+This folder is the rollback. The SQLite database file is not touched by
+anything in this runbook, so the old build plus that file is a complete,
+working system to return to.
 
-> This deployment doesn't use `deploy\run-api.ps1` or its `<root>\secrets\jwt.key`
-> convention — there's no `secrets` folder here, and that's fine. That script
-> is one way to run the API, not a requirement; nothing above depends on it.
+### 4. Stop the API, and configure the new one
 
-#### 5. Deploy the new API build
+Downtime starts here.
 
-Copy the contents of `C:\TransTruckWeb-Postgres\publish` into `C:\server\loapi`
-(replacing what step 2 backed up).
+Stop the running `TransTrack.Api.exe` (however it is normally started —
+Task Scheduler, a service, or a console window).
 
-#### 6. Start it once to create the schema, then stop it again
+Copy the new build in:
 
-The database from step 1 is empty — no tables yet. The app creates them
-itself, automatically, the moment it starts against an empty Postgres
-database (the same migration machinery that already runs against SQLite
-today). `TransTrack.PgMigrate.exe` (next step) only copies rows *into*
-existing tables — it cannot create them, and fails with `relation
-"Companies" does not exist` if you skip this step.
+```powershell
+Copy-Item -Path C:\TransTruckWeb-Postgres\publish\* -Destination C:\server\loapi -Recurse -Force
+```
+
+Now edit **`C:\server\loapi\appsettings.json`** — this one file is the entire
+configuration; there is nothing else to set and no environment variable
+required:
+
+```jsonc
+"Urls": "http://localhost:6041",
+
+"PostgresConnectionString": "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=a-strong-password",
+
+"Jwt": {
+  "Key": "<the value printed in step 1>",
+  ...
+},
+
+"Cors": {
+  "AllowedOrigins": [ "https://lorryowner.com", "https://www.lorryowner.com", "http://localhost:3000" ]
+}
+```
+
+Three things to check before saving, each of which has bitten this migration
+already:
+
+- `Urls` is `6041` — the port the Cloudflare Tunnel forwards to.
+- `Cors.AllowedOrigins` contains `https://lorryowner.com`. This is why the
+  last attempt failed: the real origins used to live only in
+  `appsettings.Production.json`, so an API started without
+  `ASPNETCORE_ENVIRONMENT=Production` silently allowed localhost only, and
+  the browser blocked every login with nothing logged on the server.
+  They are in the base file now, so this works regardless.
+- `Jwt.Key` is no longer `dev-only-signing-key-...`.
+
+### 5. Create the schema
+
+The database from step 2 is empty. The API builds its own schema the first
+time it starts against an empty Postgres database. The copy tool in step 6
+only moves rows **into** existing tables — it cannot create them, and fails
+with `relation "Companies" does not exist` if you skip this.
 
 ```powershell
 cd C:\server\loapi
 .\TransTrack.Api.exe
 ```
 
-Watch for `Applying migrations to PostgreSQL: 20260913152646_InitialCreate`
-then `PostgreSQL database ready.` in the console — that confirms every
-table now exists. Then `Ctrl+C` to stop it again; this was only to create
-the schema, not to go live with an empty database.
+Expect, in the console:
 
-#### 7. Copy the data
+```
+Applying migrations to PostgreSQL: 20260913152646_InitialCreate, 20260917033654_TenantLeadingIndexes
+PostgreSQL database ready.
+Now listening on: http://localhost:6041
+```
+
+Then press `Ctrl+C` to stop it. This start was only to create the schema —
+do not leave it serving an empty database.
+
+### 6. Copy the data
 
 ```powershell
 cd C:\TransTruckWeb-Postgres\pgmigrate
@@ -196,34 +189,81 @@ $env:TRANSTRUCKWEB_PG_CONNECTION = "Host=localhost;Database=transtruckweb;Userna
 .\TransTrack.PgMigrate.exe --sqlite "C:\TransTruckWeb\DB\TransTruckWeb.db" --yes
 ```
 
-Read the `=== Migration summary ===` block it prints: confirm
-`Result: SUCCESS` and check the row counts look right before continuing. If
-it fails, nothing was written (it's one transaction) — the summary names
-exactly which table it stopped on.
+Point `--sqlite` at whatever path that server's API is actually using — it is
+the live file, and it must be the one on **this** machine, not a copy taken
+earlier (it has kept changing while production ran on SQLite).
 
-#### 8. Start the API for real
+It prints a summary. Check three things:
+
+- `Result: SUCCESS - every table copied, transaction committed.`
+- The `TOTAL` looks like your data (the rehearsal moved 1276 rows).
+- `Schema: source already current, no fixes needed.` — if it instead says it
+  added something, that is fine; it means the source file predated a
+  migration and the tool healed its own copy.
+
+If it fails, nothing was written — the whole copy is one transaction — and
+the summary names the exact table it stopped on.
+
+### 7. Start the API for real
 
 ```powershell
 cd C:\server\loapi
 .\TransTrack.Api.exe
 ```
 
-Watch for `No migrations were applied. The database is already up to date.`
-this time — confirming it found the schema already there — then
-`PostgreSQL database ready.` and `Now listening on: ...`.
+This time expect `No migrations were applied. The database is already up to
+date.` followed by `PostgreSQL database ready.` Start it the way it is
+normally started (service / Task Scheduler) rather than a console window if
+that is how it runs day to day.
 
-#### 9. Verify, then close the downtime window
+### 8. Verify before calling it done
 
-Sign in, open a real trip, check the dashboard. Once it looks right,
-downtime is over.
+```powershell
+Invoke-RestMethod http://localhost:6041/api/health
+```
 
-#### Re-running the data copy (after a rollback, or any other reason to reload)
+Expect:
 
-If production went back to SQLite for a while — a rollback, a delayed
-cutover — it kept taking real writes in the meantime, so whatever's in
-Postgres from an earlier attempt is now stale. `TransTrack.PgMigrate.exe`
-refuses to run against a non-empty database (see step 7), so clear every
-table first:
+```
+status            : Healthy
+database          : PostgreSQL
+databaseConnected : True
+```
+
+`Degraded` or a 503 means it started but cannot reach the database — check
+the connection string in step 4.
+
+Then, in a browser at `https://lorryowner.com`:
+
+1. Sign in as a real user.
+2. Open the dashboard — the figures should match what they were.
+3. Open Trips and confirm the list loads.
+4. Open one trip.
+
+Downtime ends when this passes.
+
+### 9. If something is wrong — rollback
+
+```powershell
+# Stop the new API, then:
+Remove-Item C:\server\loapi\* -Recurse -Force
+Copy-Item -Path C:\server\loapi-sqlite-backup\* -Destination C:\server\loapi -Recurse
+```
+
+Start the old executable. It reads the SQLite file, which nothing in this
+runbook modified, so this is a complete revert.
+
+Note: **the new build cannot fall back to SQLite** — clearing
+`PostgresConnectionString` does not work, it refuses to start and says so.
+Rollback means running the old build from the backup folder.
+
+---
+
+### Re-running the data copy
+
+If production runs on SQLite again for a while (a rollback, a postponed
+cutover), the rows in Postgres go stale. The copy tool refuses to run against
+a database that already has data, so clear it first:
 
 ```powershell
 $env:PGPASSWORD = 'a-strong-password'
@@ -236,22 +276,37 @@ TRUNCATE TABLE
 CASCADE;'
 ```
 
-This clears every row but leaves the schema itself intact — step 6 (start
-once to create the schema) does not need repeating. Then re-run step 7
-against the **current** live SQLite file (not an older downloaded copy —
-it's kept changing while production ran on SQLite), and continue from
-step 8.
-
-#### Rollback, if anything's wrong
-
-Stop the new API. Restore the folder backed up in step 2 into
-`C:\server\loapi`. Remove or clear the `TRANSTRUCKWEB_PG_CONNECTION` machine
-variable (`[Environment]::SetEnvironmentVariable("TRANSTRUCKWEB_PG_CONNECTION", $null, "Machine")`).
-Start the old exe. The SQLite file was never touched, so this is a clean,
-immediate revert.
+That clears the rows and leaves the schema, so step 5 does not need repeating —
+go straight back to step 6 with the current SQLite file.
 
 ---
 
+### What was tested, and what the numbers were
+
+Rehearsed on 2026-09-17 against a copy of the live database:
+
+- **Data fidelity** — all 21 tables copied, 1276 rows, counts identical to the
+  source, in one transaction.
+- **Login** — the real production credential signs in and reaches the
+  dashboard; trips, reports and master lists all load their real values.
+- **Endpoint timings** (warm, real data): dashboard 13 ms, trips list 9 ms,
+  audit feed 5 ms, trips report 28 ms, party report 9 ms. Nothing needs
+  tuning at this data size.
+- **Indexes** — all 15 tenant-leading indexes present after migration.
+
+**One optimisation came out of this and is now in the schema.** `AuditLogs` is
+the fastest-growing table, and its index was on `ChangedOn` alone while every
+read of it also filters by `CompanyId`. Loaded to 700,000 rows with a
+realistic skew (one busy company holding the most recent activity), a quieter
+company's activity feed had to scan **300,696 rows to return 100**, taking
+45.7 ms. With the index changed to `(CompanyId, ChangedOn)` the same query
+touches only the rows it returns: **0.245 ms**, 186× faster, and 66× fewer
+buffer reads. The same shape was applied to the six master tables whose
+`Name`-only indexes had the same defect — the same number of indexes, just
+with the tenant column leading. That is migration
+`20260917033654_TenantLeadingIndexes`, applied automatically in step 5.
+
+---
 ## Is this worth doing?
 
 Honest answer for *this* app, today: **no, not yet** — but Postgres is the
