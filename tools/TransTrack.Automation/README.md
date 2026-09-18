@@ -11,6 +11,23 @@ footage can only ever come from a journey that passed its own checks.
 
 Screen capture is OBS's job. Nothing here records video.
 
+> **Currently not runnable — since the move to PostgreSQL (2026-09-18).**
+> This harness starts the real API against a throwaway *SQLite* file (see
+> "Why a real API" below). The API can no longer run on SQLite at all: it
+> carries Postgres-only migrations and refuses to start without a Postgres
+> connection string. So `TransTrack.UatTests` fails at fixture startup (all
+> 30 scenarios), and so does `TransTrack.Tests` (182 of 230), whose
+> `TestWorld` builds a SQLite database the same way.
+>
+> Making it work again means pointing `ApiServer` at a throwaway Postgres
+> database per run instead of a file — a `CREATE DATABASE` before start and
+> `DROP DATABASE` after, or one schema per run via the connection string's
+> `Search Path`. That is a contained change to `ApiServer.cs` and
+> `TestWorld.cs`, not to the scenarios; it was deliberately left out of the
+> migration itself to keep that change reviewable. Until it is done, the
+> account below of "why a real API over a file" describes how this *was*
+> built, not how it runs today.
+
 ## Layout
 
 | | |

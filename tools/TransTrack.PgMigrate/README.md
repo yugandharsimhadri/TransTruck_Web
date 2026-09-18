@@ -1,9 +1,19 @@
 # TransTrack.PgMigrate
 
-One-shot copy of every row from the SQLite database this app has been
-running on into a fresh PostgreSQL database. Built for the
-`postgres-migration` branch — not part of the running application, and
-not meant to be run more than once against a given Postgres database.
+One-shot copy of every row from the SQLite database this app used to run on
+into a fresh PostgreSQL database. This is the tool that moved production on
+2026-09-18. It is not part of the running application, and it is not meant
+to be run more than once against a given Postgres database.
+
+Now that production is on Postgres, it is only needed for standing up a
+new environment from a SQLite file, or reloading one — the procedure around
+it is in [../../POSTGRES-MIGRATION.md](../../POSTGRES-MIGRATION.md).
+
+It is published standalone (no .NET SDK or source needed where it runs):
+
+```powershell
+dotnet publish tools\TransTrack.PgMigrate\TransTrack.PgMigrate.csproj -c Release -o C:\TransTruckWeb-Postgres\pgmigrate
+```
 
 ## What it does
 
@@ -62,18 +72,33 @@ describe what was *attempted*, not what's left in the target.
 
 ## Usage
 
-```bash
-export TRANSTRUCKWEB_PG_CONNECTION='Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=...'
+On the server, from the published folder:
 
-dotnet run --project tools/TransTrack.PgMigrate -- \
-  --sqlite "C:/TransTruckWeb/DB/TransTruckWeb.db" \
-  --yes
+```powershell
+$env:TRANSTRUCKWEB_PG_CONNECTION = "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=..."
+.\TransTrack.PgMigrate.exe --sqlite "C:\TransTruckWeb\DB\TransTruckWeb.db" --yes
+```
+
+Or from source on a dev machine:
+
+```powershell
+dotnet run --project tools\TransTrack.PgMigrate -- --sqlite "<path to the .db>" --yes
 ```
 
 Both `--sqlite` and `--pg` are optional — they default to
-`TRANSTRUCKWEB_DB` / `TRANSTRUCKWEB_PG_CONNECTION`, the same environment
-variables the application itself reads. Drop `--yes` to get an
-interactive `[y/N]` confirmation instead.
+`TRANSTRUCKWEB_DB` / `TRANSTRUCKWEB_PG_CONNECTION`. Drop `--yes` for an
+interactive `[y/N]` confirmation.
+
+**Point `--sqlite` at the real file.** The target Postgres must be reachable
+from wherever this runs, and the SQLite path must be the actual database
+the API was using — on production that is the file on the production
+server. A dev machine may well have a `C:\TransTruckWeb\DB\TransTruckWeb.db`
+of its own that is an old local copy, not production; the one on this
+project's dev machine had 22 trips when production had 132.
+
+The target's schema must already exist: start the API once against the
+empty database first (it creates every table on startup), then run this.
+It only copies rows *into* tables — it does not create them.
 
 ## Resetting the target for a re-run
 

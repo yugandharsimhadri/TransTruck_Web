@@ -93,7 +93,9 @@ The money maths is the risk. Every phase ends with:
   `GrandTotal − received == BalanceReceivable`
 - a live check against a **copy of the production database**, taken *with its
   `-wal` file* (see the note in the audit — copying only the `.db` silently
-  misses recent writes)
+  misses recent writes). *This batch shipped while production was still on
+  SQLite; since 2026-09-18 it is PostgreSQL, and the equivalent is a
+  `pg_dump` restored into a throwaway database — see DEPLOYMENT.md.*
 - the production database is never used for testing
 
 ## Related

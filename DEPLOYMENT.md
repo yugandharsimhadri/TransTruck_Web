@@ -19,6 +19,19 @@ anything beyond the routine below — a new setting, a manual data fix, a
 different order — that is written down alongside the change, in the commit
 message or in this file, not left to be rediscovered on the server.
 
+**When both halves change, deploy the API first, then the frontend.** An old
+API ignores JSON properties it doesn't know, so a new frontend against an old
+API mostly survives — but a new screen calling an endpoint that doesn't exist
+yet fails outright. API first closes that window. An API-only change never
+needs a frontend deploy, and vice versa.
+
+> **Names in paths and code still say TransTrack / TransTruck.** That is
+> deliberate. The rebrand changed what users see — the app name, logo, icons,
+> the `lorryowner.com` domains — and left internal identifiers alone: the
+> `src/TransTrack.*` projects, the `TRANSTRUCKWEB_*` variable names, the JWT
+> issuer/audience, the `transtruckweb` database name. Renaming those buys
+> nothing user-facing, and changing the JWT issuer would sign every user out.
+
 ---
 
 ## API
@@ -269,3 +282,8 @@ on the server is wrong.
 | `.env.production` (public API URL) | the PostgreSQL database `transtruckweb` |
 | `deploy\frontend-artifacts\transtruck-web-pages-deploy.zip` (last-known-good frontend) | `VehicleDocs\` (uploaded documents) |
 | `brand/`, `wrangler.jsonc`, `open-next.config.ts` | `C:\TransTruckWeb-Postgres\publish\` on the dev machine (build output) |
+
+The API build output is not committed, unlike the frontend ZIP: it is ~180 MB
+unpacked, past GitHub's per-file limit and permanent bloat in a public repo.
+It is rebuilt from source with the one `dotnet publish` line above whenever
+it is needed.

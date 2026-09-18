@@ -106,7 +106,7 @@ Phased so the highest-value, lowest-risk items land first. Nothing here changes 
 10. **F7** — dashboard query consolidation, only if it becomes visibly slow.
 11. **F11** — a functional index or a stored normalized-username column, only if the user table grows enough to matter (it won't for a long time at this app's scale).
 12. **SQLite growth plan** — not a defect, but worth a written decision point: at what company/trip-count does a move to Postgres/SQL Server get scheduled, so it's a planned migration rather than a forced one. `IDocumentStorage` already models the "swap one line" pattern the DB engine doesn't have yet.
-    → **Now answered in [SQL-SERVER-MIGRATION.md](SQL-SERVER-MIGRATION.md)** (2026-08-31): a costed, phased plan for moving to SQL Server / SQL Express, including the four code blockers, the data-move landmines, and the fact that the entire file-copy backup story stops working. Still a plan only — nothing implemented.
+    → **Resolved: production moved to PostgreSQL on 2026-09-18.** Two plans were written first — [SQL-SERVER-MIGRATION.md](SQL-SERVER-MIGRATION.md) (2026-08-31) and [POSTGRES-MIGRATION.md](POSTGRES-MIGRATION.md) (2026-09-09); Postgres was chosen because it needed no string-length work and indexes `text` natively. The latter now holds the executed runbook. Two consequences worth knowing: the file-copy backup story did stop working, exactly as both plans warned — a `pg_dump` schedule is now needed (see [DEPLOYMENT.md](DEPLOYMENT.md)); and the SQLite-based test suites (`TransTrack.Tests`, `TransTrack.UatTests`) cannot run against this build until their harness is pointed at a throwaway Postgres database — see `tools/TransTrack.Automation/README.md`.
 
 ---
 

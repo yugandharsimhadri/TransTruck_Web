@@ -16,11 +16,18 @@ npm run dev
 ```
 
 Starts on <http://localhost:3000> and expects the API on
-<http://localhost:5034> (see `.env.local`). Start the API separately:
+<http://localhost:5034> (see `.env.local`). Start the API separately — it
+runs on PostgreSQL and needs a connection string to start (it cannot run on
+SQLite), so set that in the shell first:
 
-```bash
-dotnet run --project ../../src/TransTrack.Api --urls http://localhost:5034
+```powershell
+$env:TRANSTRUCKWEB_PG_CONNECTION = "Host=localhost;Database=transtruckweb;Username=transtrack_app;Password=..."
+dotnet run --project ..\..\src\TransTrack.Api
 ```
+
+It binds 5034 on its own in Development (`appsettings.Development.json`);
+no `--urls` needed. See [`../../DEPLOYMENT.md`](../../DEPLOYMENT.md) for
+the database setup and everything about the deployed site.
 
 ## Checks
 

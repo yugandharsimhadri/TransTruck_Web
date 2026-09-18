@@ -1,12 +1,20 @@
 # Moving from SQLite to PostgreSQL
 
-**Status: implemented and merged to `main`** (commit `9134099`, 2026-09-13).
-Everything below "Is this worth doing?" was written 2026-09-09 as a plan, before
-any of it existed — kept as-is for the reasoning behind each decision. The
-recommendation at the bottom ("do not do this now") was the honest answer
-*at that time*; the user chose to proceed anyway, so read that section as
-history, not current advice. **For how to actually run this, see the runbook
-immediately below.**
+**Status: done. Production has run on PostgreSQL since 2026-09-18.**
+Code merged to `main` 2026-09-13 (`9134099`); the cutover itself was rehearsed
+against a copy of the real data on 2026-09-17 and executed on the production
+server the next day, following the runbook below.
+
+For **everyday deployment** from here on, see [DEPLOYMENT.md](DEPLOYMENT.md) —
+none of this document needs repeating for a normal release. The runbook below
+is kept for two reasons: standing up a **new environment** from scratch (a
+second server, the eventual cloud move), and the **re-run procedure** if
+Postgres ever has to be reloaded from a SQLite file again.
+
+Everything below "Is this worth doing?" was written 2026-09-09 as a plan,
+before any of it existed — kept as-is for the reasoning behind each decision.
+Its recommendation ("do not do this now") was the honest answer *at that time*
+and is history, not current advice.
 
 ---
 ## Runbook: SQLite → PostgreSQL cutover
@@ -28,10 +36,10 @@ published as self-contained folders you copy over.
 frontend does not change at all — it keeps calling the same URL, and nothing
 about the API's shape changes.
 
-**What is already true on that server:** PostgreSQL is installed, with no
-database or role yet, and a previous attempt this week was rolled back — so
-there may be a half-migrated `transtruckweb` database still sitting there.
-Step 2 wipes it.
+**Assumes:** PostgreSQL is installed on the target server. Step 2 creates
+the database and role, and wipes any earlier half-migrated attempt first —
+which is exactly what it did on production, where a rolled-back first
+attempt had left a stale `transtruckweb` behind.
 
 **Two folders to copy over first**, both published from this repo:
 

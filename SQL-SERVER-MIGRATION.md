@@ -1,11 +1,14 @@
 # Moving from SQLite to SQL Server / SQL Express
 
 **Written:** 2026-08-31
-**Status:** plan only — nothing implemented.
+**Status: not pursued.** PostgreSQL was chosen instead and production moved
+to it on 2026-09-18 — see [POSTGRES-MIGRATION.md](POSTGRES-MIGRATION.md).
+The deciding factor was blocker B1 below: SQL Server needs `HasMaxLength`
+on every indexed string column before a migration will even generate,
+while Postgres indexes `text` natively and that whole blocker disappears.
+Kept for the analysis, which still describes the code accurately as of the
+date written; nothing here will be implemented.
 **Scope:** the API's database provider and the one-time move of existing data.
-
-This is a working checklist, not a one-off write-up. Tick items as they land and
-add new ones the same way.
 
 ---
 
