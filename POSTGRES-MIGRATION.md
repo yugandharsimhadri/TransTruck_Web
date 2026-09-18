@@ -170,16 +170,51 @@ cd C:\server\loapi
 .\TransTrack.Api.exe
 ```
 
-Expect, in the console:
+**The first thing the console prints looks like an error. It is not.**
+Expect two of these, right at the top:
 
 ```
-Applying migrations to PostgreSQL: 20260913152646_InitialCreate, 20260917033654_TenantLeadingIndexes
-PostgreSQL database ready.
-Now listening on: http://localhost:6041
+fail: Microsoft.EntityFrameworkCore.Database.Command[20102]
+      Failed executing DbCommand ... SELECT "MigrationId", "ProductVersion" FROM "__EFMigrationsHistory" ...
 ```
 
-Then press `Ctrl+C` to stop it. This start was only to create the schema —
-do not leave it serving an empty database.
+That is EF Core asking the migrations-history table what has been applied
+*before* it has created that table. On an empty database the table is not
+there yet, so the query fails, EF catches it, creates the table, and
+carries on. It happens on every fresh database and it happened in the
+rehearsal. Then expect:
+
+```
+info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260913152646_InitialCreate'.
+info: Microsoft.EntityFrameworkCore.Migrations[20402]
+      Applying migration '20260917033654_TenantLeadingIndexes'.
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:6041
+```
+
+**Do not judge this step by the console.** Confirm the result directly —
+this is the check that actually matters:
+
+```powershell
+$env:PGPASSWORD = 'a-strong-password'
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U transtrack_app -d transtruckweb -c "SELECT ""MigrationId"" FROM ""__EFMigrationsHistory"" ORDER BY 1;"
+```
+
+Expect exactly two rows:
+
+```
+ 20260913152646_InitialCreate
+ 20260917033654_TenantLeadingIndexes
+```
+
+Then press `Ctrl+C` to stop the API. This start was only to create the
+schema — do not leave it serving an empty database.
+
+(The fuller messages — "Applying migrations to PostgreSQL: …",
+"PostgreSQL database ready." — are written to the **log file**, not the
+console. Read them any time with `/api/health/logs`, or open the newest
+`transtrack-*.log` under `C:\ProgramData\TransTrack\logs`.)
 
 ### 6. Copy the data
 
