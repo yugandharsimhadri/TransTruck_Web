@@ -11,22 +11,25 @@ footage can only ever come from a journey that passed its own checks.
 
 Screen capture is OBS's job. Nothing here records video.
 
-> **Currently not runnable — since the move to PostgreSQL (2026-09-18).**
-> This harness starts the real API against a throwaway *SQLite* file (see
-> "Why a real API" below). The API can no longer run on SQLite at all: it
-> carries Postgres-only migrations and refuses to start without a Postgres
-> connection string. So `TransTrack.UatTests` fails at fixture startup (all
-> 30 scenarios), and so does `TransTrack.Tests` (182 of 230), whose
-> `TestWorld` builds a SQLite database the same way.
+> **Needs a PostgreSQL server — since the move to PostgreSQL (2026-09-18).**
+> Set `TRANSTRUCK_UAT_PG_CONNECTION` before running anything here:
 >
-> Making it work again means pointing `ApiServer` at a throwaway Postgres
-> database per run instead of a file — a `CREATE DATABASE` before start and
-> `DROP DATABASE` after, or one schema per run via the connection string's
-> `Search Path`. That is a contained change to `ApiServer.cs` and
-> `TestWorld.cs`, not to the scenarios; it was deliberately left out of the
-> migration itself to keep that change reviewable. Until it is done, the
-> account below of "why a real API over a file" describes how this *was*
-> built, not how it runs today.
+> ```powershell
+> $env:TRANSTRUCK_UAT_PG_CONNECTION = "Host=localhost;Database=postgres;Username=postgres;Password=..."
+> ```
+>
+> Only the host, port and credentials are read from it. Each run creates its
+> own `transtruck_uat_<timestamp>` database, lets the API migrate it, and
+> drops it at teardown — so the connection string may safely name a server
+> that also holds the real installation. The user needs `CREATEDB`; unset,
+> the suite says so and stops rather than falling back to anything existing.
+>
+> This replaced a throwaway SQLite *file*, which the API can no longer open:
+> it carries Postgres-only migrations and refuses to start without a Postgres
+> connection string. `TransTrack.Tests` took the other road out of the same
+> break — it builds its schema from the model with `EnsureCreated` and stays
+> on SQLite, since those tests assert on service behaviour and need no
+> server.
 
 ## Layout
 
@@ -79,6 +82,8 @@ Every one has a working default, so a bare `dotnet test` needs no configuration.
 | `TRANSTRUCK_UAT_MANAGE_SERVERS` | `true` | `false` to point at servers you started |
 | `TRANSTRUCK_UAT_MOBILE_DEVICE` | `iPhone 15 Pro` | any Playwright device descriptor |
 | `TRANSTRUCK_UAT_DESKTOP_SIZE` | `1920x1080` | desktop page size, `WIDTHxHEIGHT`; rejected if malformed |
+| `TRANSTRUCK_UAT_PG_CONNECTION` | **required** | the Postgres server the run's database is created on; falls back to `TRANSTRUCKWEB_PG_CONNECTION` |
+| `TRANSTRUCK_UAT_KEEP_DB` | `false` | `true` keeps the run's database instead of dropping it |
 
 ## Ports: 5310 and 5311
 
@@ -156,21 +161,27 @@ phone into the corner of a blank sheet — 421px of dead space, measured.
 `ABPS_WEB.Automation`, which this mirrors, answers every `/api/**` call from fixtures. That is right
 there: its API needs SQL Server, so a mock is what makes the suite runnable at all.
 
-Here the API is one process over a *file*, and `TRANSTRUCKWEB_DB` already exists to point it
-somewhere harmless. So each run starts the real API against a throwaway SQLite database under
-`artifacts/uat/api-data/<timestamp>/` and seeds it through the product's own onboarding endpoint.
-That buys three things a fixture set cannot:
+Here the API is one process, and a database it can be pointed at is cheap. So each run creates a
+`transtruck_uat_<timestamp>` database, starts the real API against it — logging and any uploaded
+documents to `artifacts/uat/api-data/<timestamp>/` — and seeds it through the product's own
+onboarding endpoint. That buys three things a fixture set cannot:
 
 - **Determinism without maintenance.** The dataset is rebuilt from empty every run, so it is
   reproducible for the same reason a fixture is — but it cannot drift from the API the way a
   hand-written fixture silently does the first time a response shape changes.
 - **Real coverage.** A mocked UAT proves the client renders a shape someone typed into a fixture.
-  This proves the client, the controllers, EF, the tenant filter and SQLite agree.
+  This proves the client, the controllers, EF, the tenant filter and PostgreSQL agree — on the same
+  provider production runs, which is worth more now than when both were SQLite.
 - **No second implementation.** Mocking this product means hand-maintaining ~40 endpoints — a shadow
   backend that has to be kept in step forever.
 
-The price is a few seconds of startup. The database is left on disk after a run, because a failed
-scenario is far easier to diagnose against the data it actually ran on.
+The price is a few seconds of startup, and a Postgres server having to be reachable.
+
+The database is dropped at teardown, which is the one habit that changed with the migration: a
+leftover SQLite file cost a few hundred KB under a gitignored folder, whereas a leftover database
+sits on a server until somebody goes looking for it. Set `TRANSTRUCK_UAT_KEEP_DB=true` to keep it
+when diagnosing a failure — the run prints the name and the `DROP DATABASE` to finish with. The
+logs beside it are kept either way.
 
 ## Two viewports, one set of workflows
 

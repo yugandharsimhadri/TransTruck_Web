@@ -91,6 +91,26 @@ public sealed record AutomationOptions
 
     public int DesktopHeight { get; init; } = 1080;
 
+    /// <summary>
+    /// How to reach the PostgreSQL server the run's throwaway database is created on. Only the host,
+    /// port and credentials are used — <see cref="UatDatabase"/> generates its own database name, so
+    /// whatever Database this names is never opened and never written to.
+    ///
+    /// There is deliberately no default. Before the move to PostgreSQL the API ran on a file and a
+    /// bare `dotnet test` needed no configuration at all; a database server cannot be conjured the
+    /// same way, and guessing credentials would either fail confusingly or — worse — succeed against
+    /// something real. Unset, the suite says exactly what to set and stops.
+    /// </summary>
+    public string? PostgresConnectionString { get; init; }
+
+    /// <summary>
+    /// Leaves the run's database on the server instead of dropping it. The SQLite version kept every
+    /// run's file for exactly this reason: a failed scenario is far easier to read against the data
+    /// it actually ran on. Off by default here, because the cost of forgetting is now databases
+    /// accumulating on a shared server rather than a few hundred KB under artifacts/.
+    /// </summary>
+    public bool KeepDatabase { get; init; }
+
     /// <summary>Per-action delay Playwright applies, in milliseconds. Raised in the video modes so the cursor is followable.</summary>
     public int SlowMoMs => RunMode switch
     {
@@ -123,7 +143,8 @@ public sealed record AutomationOptions
     /// Builds the options from environment variables, falling back to the defaults above:
     /// TRANSTRUCK_UAT_BASE_URL, TRANSTRUCK_UAT_API_BASE_URL, TRANSTRUCK_UAT_RUN_MODE (test|demo|userguide),
     /// TRANSTRUCK_UAT_VIEWPORT (desktop|mobile), TRANSTRUCK_UAT_WEB_PATH,
-    /// TRANSTRUCK_UAT_MANAGE_SERVERS (true|false), TRANSTRUCK_UAT_MOBILE_DEVICE.
+    /// TRANSTRUCK_UAT_MANAGE_SERVERS (true|false), TRANSTRUCK_UAT_MOBILE_DEVICE,
+    /// TRANSTRUCK_UAT_PG_CONNECTION (required), TRANSTRUCK_UAT_KEEP_DB (true|false).
     /// </summary>
     public static AutomationOptions FromEnvironment(
         RunMode defaultRunMode = RunMode.Test,
@@ -142,6 +163,12 @@ public sealed record AutomationOptions
             MobileDevice = Env("TRANSTRUCK_UAT_MOBILE_DEVICE") ?? "iPhone 15 Pro",
             DesktopWidth = desktopWidth,
             DesktopHeight = desktopHeight,
+
+            // TRANSTRUCKWEB_PG_CONNECTION is honoured as a fallback because it is the variable the
+            // product itself reads, so a machine already set up to run the API needs nothing more to
+            // run the suite. It is only ever read for its host and credentials.
+            PostgresConnectionString = Env("TRANSTRUCK_UAT_PG_CONNECTION") ?? Env("TRANSTRUCKWEB_PG_CONNECTION"),
+            KeepDatabase = string.Equals(Env("TRANSTRUCK_UAT_KEEP_DB"), "true", StringComparison.OrdinalIgnoreCase),
         };
     }
 

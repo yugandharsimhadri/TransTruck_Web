@@ -3,37 +3,44 @@ using System.Diagnostics;
 namespace TransTrack.Automation;
 
 /// <summary>
-/// Runs the real TransTrack.Api against a throwaway SQLite file for the duration of a run.
+/// Runs the real TransTrack.Api against a throwaway PostgreSQL database for the duration of a run.
 ///
 /// This is the one place this layer deliberately parts company with ABPS_WEB.Automation, which mocks
 /// every HTTP response. That choice was right there — its API needs SQL Server, so a mock is what
-/// makes the suite runnable at all. Here the API is a single process over a *file*, and
-/// TRANSTRUCKWEB_DB already exists to point it somewhere harmless, so the live stack costs one
-/// process to start and gives three things a fixture set cannot:
+/// makes the suite runnable at all. Here the live stack costs one process to start, plus a database
+/// created and dropped around it (see <see cref="UatDatabase"/>), and gives three things a fixture
+/// set cannot:
 ///
 ///  * Determinism without maintenance. The dataset is rebuilt from empty on every run through the
 ///    product's own onboarding endpoint, so it is reproducible for the same reason a fixture is —
 ///    but it cannot drift from the API the way a hand-written fixture silently does the first time a
 ///    response shape changes and nobody updates the mock.
 ///  * Real coverage. A mocked UAT proves the React client renders a shape someone typed into a
-///    fixture. This proves the client, the controllers, EF, the tenant filter and SQLite agree.
+///    fixture. This proves the client, the controllers, EF, the tenant filter and PostgreSQL agree —
+///    on the same provider production runs, which is worth more since the migration than it was
+///    when this and production were both SQLite.
 ///  * No second implementation. Mocking this product means hand-maintaining roughly forty endpoints,
 ///    which is a shadow backend that has to be kept in step forever.
 ///
-/// The price is that a run is a few seconds slower and needs the API to build. That is worth paying.
-/// Nothing here can touch a real installation: the database path, the backup folder and the port are
-/// all overridden to run-local values, and the production port 6041 is never bound.
+/// The price is that a run is a few seconds slower, needs the API to build, and now needs a
+/// PostgreSQL server to be reachable. That is worth paying.
+///
+/// Nothing here can touch a real installation: the database is a fresh one created for this run
+/// alone, the backup and log folders are overridden to run-local paths, and the production port 6041
+/// is never bound.
 /// </summary>
 public sealed class ApiServer : IAsyncDisposable
 {
     private readonly Process? _ownedProcess;
     private readonly string? _dataDirectory;
+    private readonly UatDatabase? _database;
 
-    private ApiServer(string baseUrl, Process? ownedProcess, string? dataDirectory)
+    private ApiServer(string baseUrl, Process? ownedProcess, string? dataDirectory, UatDatabase? database)
     {
         BaseUrl = baseUrl;
         _ownedProcess = ownedProcess;
         _dataDirectory = dataDirectory;
+        _database = database;
     }
 
     public string BaseUrl { get; }
@@ -53,7 +60,7 @@ public sealed class ApiServer : IAsyncDisposable
         if (await ManagedProcess.IsRespondingAsync($"{baseUrl}/api/auth/me", cancellationToken))
         {
             log?.Invoke($"Reusing the API already serving {baseUrl}");
-            return new ApiServer(baseUrl, ownedProcess: null, dataDirectory: null);
+            return new ApiServer(baseUrl, ownedProcess: null, dataDirectory: null, database: null);
         }
 
         if (!options.ManageServers)
@@ -61,16 +68,44 @@ public sealed class ApiServer : IAsyncDisposable
                 $"Nothing is serving {baseUrl} and TRANSTRUCK_UAT_MANAGE_SERVERS=false, so the automation " +
                 "will not start one. Start the API yourself or unset that variable.");
 
+        if (string.IsNullOrWhiteSpace(options.PostgresConnectionString))
+            throw new InvalidOperationException(
+                "This suite needs a PostgreSQL server: the API no longer runs on SQLite, so there is "
+                + "no throwaway file to point it at. Set TRANSTRUCK_UAT_PG_CONNECTION to a server and "
+                + "a user allowed to create databases, for example:\n"
+                + "  $env:TRANSTRUCK_UAT_PG_CONNECTION = "
+                + "\"Host=localhost;Database=postgres;Username=postgres;Password=...\"\n"
+                + "Only the host and credentials are used — each run creates and drops its own "
+                + $"{UatDatabase.Prefix}* database and never opens an existing one.");
+
         // A per-run folder under artifacts/, not the product's C:\TransTruckWeb: a UAT run must never
-        // open, migrate or back up a database anyone cares about.
+        // write logs or uploaded documents anywhere anyone cares about. The database itself is no
+        // longer a file, but everything that sat beside it still is.
         var dataDirectory = Path.Combine(RepoPaths.ArtifactsDir, "api-data", DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff"));
         Directory.CreateDirectory(dataDirectory);
+
+        var database = await UatDatabase.CreateAsync(
+            options.PostgresConnectionString!, options.KeepDatabase, log, cancellationToken);
 
         var environment = new Dictionary<string, string>
         {
             ["ASPNETCORE_ENVIRONMENT"] = "Development",
+
+            // Both, and the unprefixed one is the one that actually binds.
+            // ASPNETCORE_URLS is read into *host* configuration, which the
+            // appsettings files are then layered on top of — and since the API
+            // moved its port into configuration, appsettings.Development.json
+            // carries "Urls": "http://localhost:5034" and quietly won. The run
+            // then sat waiting for 5311 while a perfectly healthy API answered
+            // on 5034. The unprefixed "Urls" variable is applied after the JSON
+            // files, so it is the one that settles it.
             ["ASPNETCORE_URLS"] = baseUrl,
-            ["TRANSTRUCKWEB_DB"] = Path.Combine(dataDirectory, "uat.db"),
+            ["Urls"] = baseUrl,
+
+            // The run's own database, created a moment ago and empty. The API applies its migrations
+            // into it on start, which is what keeps the schema under test the one the product builds
+            // rather than one this harness knows how to build.
+            ["TRANSTRUCKWEB_PG_CONNECTION"] = database.ConnectionString,
             ["TRANSTRUCKWEB_BACKUPDIR"] = Path.Combine(dataDirectory, "backup"),
             ["TRANSTRACK_LOG_DIR"] = Path.Combine(dataDirectory, "logs"),
 
@@ -91,7 +126,7 @@ public sealed class ApiServer : IAsyncDisposable
             ["RateLimit__AuthPermitsPerMinute"] = "10000",
         };
 
-        log?.Invoke($"Starting TransTrack.Api on {baseUrl} against a throwaway database in {dataDirectory}");
+        log?.Invoke($"Starting TransTrack.Api on {baseUrl} against {database.Name}, logging to {dataDirectory}");
 
         var process = ManagedProcess.Start(
             "dotnet",
@@ -99,11 +134,11 @@ public sealed class ApiServer : IAsyncDisposable
             new[] { "run", "--project", RepoPaths.ApiProject, "--configuration", "Release", "--no-launch-profile" },
             environment);
 
-        var server = new ApiServer(baseUrl, process, dataDirectory);
+        var server = new ApiServer(baseUrl, process, dataDirectory, database);
 
         try
         {
-            // Generous: a cold run compiles the API and applies every migration to a new file.
+            // Generous: a cold run compiles the API and applies every migration to a new database.
             await ManagedProcess.WaitUntilRespondingAsync(
                 $"{baseUrl}/api/auth/me", TimeSpan.FromSeconds(180), process, "TransTrack.Api", cancellationToken);
         }
@@ -119,11 +154,17 @@ public sealed class ApiServer : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        // Strictly before the drop: DROP DATABASE is refused while any session is attached, and the
+        // API holds a connection pool open for as long as it is running.
         await ManagedProcess.StopAsync(_ownedProcess);
 
-        // The database is left on disk when the run owned it: a failed scenario is much easier to
-        // diagnose against the data it actually ran on. artifacts/ is gitignored and these are a few
-        // hundred KB each.
-        await Task.CompletedTask;
+        // Dropped, unlike the SQLite file this replaced. Keeping every run's data was cheap when it
+        // was a few hundred KB under a gitignored folder; a database left on a server stays there
+        // until someone goes looking. TRANSTRUCK_UAT_KEEP_DB=true keeps it when diagnosing.
+        if (_database is not null)
+            await _database.DropAsync();
+
+        // The logs and any uploaded documents stay either way: they are what a failed scenario is
+        // read from, and they are under artifacts/.
     }
 }

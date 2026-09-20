@@ -13,6 +13,12 @@
          adding a fifth build to ~/AppData/Local/ms-playwright. If web/transtrack-web ever adds
          @playwright/test, pin it to the same major/minor for the same reason. -->
     <PackageReference Include="Microsoft.Playwright" Version="1.61.0" />
+
+    <!-- The API moved to PostgreSQL, so this layer needs a Postgres client of its own: it creates
+         and drops the run's throwaway database around the API, which nothing inside the API can do
+         for itself. Matched to the version TransTrack.Data resolves through
+         Npgsql.EntityFrameworkCore.PostgreSQL, so one Npgsql is loaded rather than two. -->
+    <PackageReference Include="Npgsql" Version="10.*" />
   </ItemGroup>
 
 </Project>
