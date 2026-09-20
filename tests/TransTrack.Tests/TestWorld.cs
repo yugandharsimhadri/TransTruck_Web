@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using TransTrack.Core;
 using TransTrack.Data;
 
@@ -81,7 +81,20 @@ public sealed class TestWorld : IAsyncDisposable
     {
         await using (var db = await Factory.CreateDbContextAsync())
         {
-            await db.Database.MigrateAsync();
+            // Built from the model rather than by replaying the migrations.
+            // Since the move to PostgreSQL those migrations are Npgsql's —
+            // uuid, text, timestamp with time zone — so MigrateAsync cannot
+            // apply them to the SQLite file these tests run on, and every
+            // test that reached here died on "the model has pending changes".
+            //
+            // Nothing is lost by building from the model: these tests assert
+            // on service behaviour, not on the migration history, and the
+            // model carries no provider-specific configuration for the two
+            // to disagree about. The trade is that a migration which is
+            // wrong *relative to the model* is no longer caught here — that
+            // belongs to a migration test against a real Postgres database,
+            // which is what the UAT harness now stands up.
+            await db.Database.EnsureCreatedAsync();
         }
 
         // Seeding runs with no tenant context, so the global filters would
